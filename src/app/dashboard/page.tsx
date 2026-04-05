@@ -126,9 +126,12 @@ export default function DashboardPage() {
     return [...userIds].map((id) => profileCache.get(id) ?? "Usuário");
   }
 
+  // Provas são tratadas separadamente (sem status de conclusão)
+  const isPast = (d: string | null) => d ? d < todayStr : false;
+
   // --- Calendar data ---
 
-  // Weekly view: next 7 days
+  // Weekly view: next 7 days (inclui provas)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
@@ -173,14 +176,16 @@ export default function DashboardPage() {
     setExpandedMonths(next);
   }
 
-  // Filtered items
-  const pendingForMe = allItems.filter((i) => !isMineDone(i)).length;
-  const doneByMe = allItems.filter((i) => isMineDone(i)).length;
-  const overdueItems = allItems.filter((i) => {
+  // Filtered items (provas NÂO contam nas estatísticas)
+  const nonExams = allItems.filter((i) => i.item_type !== "exam");
+  const examItems = allItems.filter((i) => i.item_type === "exam" && i.due_date);
+  const pendingForMe = nonExams.filter((i) => !isMineDone(i)).length;
+  const doneByMe = nonExams.filter((i) => isMineDone(i)).length;
+  const overdueItems = nonExams.filter((i) => {
     if (!i.due_date || isMineDone(i)) return false;
     return i.due_date < todayStr;
   });
-  const todayItems = allItems.filter((i) => i.due_date === todayStr && !isMineDone(i));
+  const todayItems = nonExams.filter((i) => i.due_date === todayStr && !isMineDone(i));
 
   // If a day is selected from the calendar, show that day's items
   const selectedDayItems = selectedDay ? allItems.filter((i) => i.due_date === selectedDay) : [];
@@ -190,11 +195,11 @@ export default function DashboardPage() {
 
   const filteredItems = (() => {
     switch (activeFilter) {
-      case "mine": return allItems.filter((i) => i.created_by === currentUser);
-      case "pending": return allItems.filter((i) => !isMineDone(i));
-      case "concluded": return allItems.filter((i) => isMineDone(i));
+      case "mine": return nonExams.filter((i) => i.created_by === currentUser);
+      case "pending": return nonExams.filter((i) => !isMineDone(i));
+      case "concluded": return nonExams.filter((i) => isMineDone(i));
       case "overdue": return overdueItems;
-      default: return allItems;
+      default: return allItems; // all includes exams
     }
   })();
 
@@ -261,19 +266,18 @@ export default function DashboardPage() {
                   </CollapsibleSection>
                 )}
                 {(() => {
-                  const upcoming = allItems.filter((i) => !i.due_date || (!isMineDone(i) && i.due_date >= todayStr)).slice(3);
-                  const filtered = upcoming.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr);
-                  if (filtered.length === 0) return null;
+                  const upcoming = nonExams.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(3);
+                  if (upcoming.length === 0) return null;
                   return (
-                    <CollapsibleSection title="Pr&oacute;ximas" count={filtered.length} defaultOpen>
-                      {filtered.map((item) => (
+                    <CollapsibleSection title="Pr&oacute;ximas" count={upcoming.length} defaultOpen>
+                      {upcoming.map((item) => (
                         <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
                 })()}
                 {(() => {
-                  const noDateItems = allItems.filter((i) => !i.due_date && !isMineDone(i));
+                  const noDateItems = nonExams.filter((i) => !i.due_date && !isMineDone(i));
                   if (noDateItems.length === 0) return null;
                   return (
                     <CollapsibleSection title="Sem data" count={noDateItems.length} defaultOpen>
@@ -283,8 +287,15 @@ export default function DashboardPage() {
                     </CollapsibleSection>
                   );
                 })()}
+                {examItems.length > 0 && (
+                  <CollapsibleSection title="Provas" count={examItems.length} accent="text-red-600" defaultOpen={false}>
+                    {examItems.map((item) => (
+                      <ItemLine key={item.id} item={item} isMineDone={false} onToggleDone={() => {}} doneNames={[]} router={router} />
+                    ))}
+                  </CollapsibleSection>
+                )}
                 {(() => {
-                  const done = allItems.filter((i) => isMineDone(i));
+                  const done = nonExams.filter((i) => isMineDone(i));
                   if (done.length === 0) return null;
                   return (
                     <CollapsibleSection title="Conclu&iacute;das" count={done.length} defaultOpen={false}>
