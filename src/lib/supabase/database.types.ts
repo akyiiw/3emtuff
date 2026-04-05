@@ -16,9 +16,9 @@ export interface Database {
 
       };
       items: {
-        Row: { id: string; subject_id: string; text: string; description: string | null; due_date: string | null; item_type: string; created_by: string; created_at: string };
-        Insert: { id?: string; subject_id: string; text: string; description?: string | null; due_date?: string | null; item_type?: string; created_by: string; created_at?: string };
-        Update: { id?: string; subject_id?: string; text?: string; description?: string | null; due_date?: string | null; item_type?: string; created_by?: string; created_at?: string };
+        Row: { id: string; subject_id: string; text: string; description: string | null; due_date: string | null; item_type: string; created_by: string; created_at: string; edited_by: string | null; updated_at: string | null };
+        Insert: { id?: string; subject_id: string; text: string; description?: string | null; due_date?: string | null; item_type?: string; created_by: string; created_at?: string; edited_by?: string | null; updated_at?: string | null };
+        Update: { id?: string; subject_id?: string; text?: string; description?: string | null; due_date?: string | null; item_type?: string; created_by?: string; created_at?: string; edited_by?: string | null; updated_at?: string | null };
       };
       item_links: {
         Row: { id: string; item_id: string; url: string; label: string | null; created_at: string };
@@ -31,9 +31,9 @@ export interface Database {
         Update: { id?: string; item_id?: string; user_id?: string; done_at?: string };
       };
       forum_posts: {
-        Row: { id: string; subject_id: string | null; item_id: string | null; title: string; body: string | null; post_type: string; user_id: string; created_at: string; updated_at: string };
-        Insert: { id?: string; subject_id?: string | null; item_id?: string | null; title: string; body?: string | null; post_type?: string; user_id: string; created_at?: string; updated_at?: string };
-        Update: { id?: string; subject_id?: string | null; item_id?: string | null; title?: string; body?: string | null; post_type?: string; user_id?: string; created_at?: string; updated_at?: string };
+        Row: { id: string; subject_id: string | null; item_id: string | null; title: string; body: string | null; post_type: string; user_id: string; created_at: string; updated_at: string; edited_by: string | null };
+        Insert: { id?: string; subject_id?: string | null; item_id?: string | null; title: string; body?: string | null; post_type?: string; user_id: string; created_at?: string; updated_at?: string; edited_by?: string | null };
+        Update: { id?: string; subject_id?: string | null; item_id?: string | null; title?: string; body?: string | null; post_type?: string; user_id?: string; created_at?: string; updated_at?: string; edited_by?: string | null };
       };
       forum_comments: {
         Row: { id: string; post_id: string; body: string; user_id: string; created_at: string; updated_at: string };
@@ -41,9 +41,14 @@ export interface Database {
         Update: { id?: string; post_id?: string; body?: string; user_id?: string; created_at?: string; updated_at?: string };
       };
       reminder_preferences: {
-        Row: { user_id: string; enabled: boolean; days_before: number; created_at: string; updated_at: string };
-        Insert: { user_id: string; enabled?: boolean; days_before?: number; created_at?: string; updated_at?: string };
-        Update: { user_id?: string; enabled?: boolean; days_before?: number; created_at?: string; updated_at?: string };
+        Row: { user_id: string; enabled: boolean; schedule_days: number[]; created_at: string; updated_at: string };
+        Insert: { user_id: string; enabled?: boolean; schedule_days?: number[]; created_at?: string; updated_at?: string };
+        Update: { user_id?: string; enabled?: boolean; schedule_days?: number[]; created_at?: string; updated_at?: string };
+      };
+      notifications: {
+        Row: { id: string; user_id: string; type: string; title: string; body: string | null; link: string | null; is_read: boolean; created_at: string; };
+        Insert: { id?: string; user_id: string; type: string; title: string; body?: string | null; link?: string | null; is_read?: boolean; created_at?: string; };
+        Update: { id?: string; user_id?: string; type?: string; title?: string; body?: string | null; link?: string | null; is_read?: boolean; created_at?: string; };
       };
     };
     Views: Record<string, never>;

@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     const { data: prefs } = await supabase
       .from("reminder_preferences")
-      .select("user_id, enabled, days_before")
+      .select("user_id, enabled, schedule_days")
       .returns<Database["public"]["Tables"]["reminder_preferences"]["Row"][]>();
 
     const enabledPrefs = (prefs ?? []).filter((p) => p.enabled);
@@ -54,12 +54,16 @@ export async function POST(req: NextRequest) {
 
       const displayName = profile?.display_name || profile?.name || userEmail.split("@")[0];
 
-      // Target dates from today to today + days_before
+      // Target dates based on schedule_days array
       const targetDates: string[] = [];
-      for (let i = 0; i <= pref.days_before; i++) {
+      for (const daysBefore of (pref.schedule_days ?? [0] as number[])) {
         const d = new Date(today);
-        d.setDate(d.getDate() + i);
-        targetDates.push(d.toISOString().split("T")[0]);
+        if (daysBefore === 0) {
+          targetDates.push(d.toISOString().split("T")[0]);
+        } else {
+          d.setDate(d.getDate() + daysBefore);
+          targetDates.push(d.toISOString().split("T")[0]);
+        }
       }
 
       const { data: userItems } = await supabase

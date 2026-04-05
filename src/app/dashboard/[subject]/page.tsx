@@ -8,8 +8,9 @@ import { Navbar } from "@/components/navbar";
 import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
 import { Section, Detail, ItemCard, profileCache } from "@/components/subject";
 import type { Item } from "@/components/subject";
+import { ReminderSettings } from "@/components/reminder-settings";
 import {
-  Calendar, ExternalLink, LinkIcon, User,
+  Calendar, ExternalLink, LinkIcon, User, Edit3,
   CheckCircle2, Undo2, Trash2, AlertTriangle, Edit2, Check,
   GraduationCap, FolderOpen, FileText, MessageSquare,
 } from "lucide-react";
@@ -49,6 +50,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteCheck, setDeleteCheck] = useState(false);
+  const [showReminderSettings, setShowReminderSettings] = useState(false);
 
   useEffect(() => { checkAuth(); loadItems(); }, [subjectId]);
 
@@ -218,7 +220,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+      <Navbar onOpenSettings={() => setShowReminderSettings(true)} userId={currentUser} />
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         <div className={`mb-6 p-5 rounded-2xl border-l-4 ${borderAccent} bg-white dark:bg-zinc-900 shadow-sm`}>
@@ -361,6 +363,20 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                       {profileCache.get(selectedItem.created_by) ?? "Usuário"}
                     </Detail>
 
+                    {(selectedItem as any).edited_by && (selectedItem as any).updated_at && (
+                      <Detail label="Editado em">
+                        <Edit3 size={12} className="shrink-0 text-amber-500" />
+                        <span className="text-amber-500 dark:text-amber-400">
+                          {(() => {
+                            const editorId = (selectedItem as any).edited_by;
+                            const editorName = profileCache.get(editorId) ?? "Alguém";
+                            const date = (selectedItem as any).updated_at;
+                            return editorName + " · " + new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+                          })()}
+                        </span>
+                      </Detail>
+                    )}
+
                     {selectedItem.due_date && (
                       <Detail label="Data de entrega">
                         <Calendar size={12} className="shrink-0" />
@@ -449,6 +465,12 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
           item_type: selectedItem.item_type,
           links: itemLinks.map((l) => ({ id: l.id, url: l.url, label: l.label ?? "" })),
         } : null}
+      />
+
+      <ReminderSettings
+        open={showReminderSettings}
+        onClose={() => setShowReminderSettings(false)}
+        userId={currentUser}
       />
     </div>
   );

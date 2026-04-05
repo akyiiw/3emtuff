@@ -154,7 +154,7 @@ export default function ForumPage() {
   const regularPosts = filteredPosts.filter((p) => !p.is_pinned);
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+      <Navbar userId={currentUser} />
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Header */}
@@ -274,6 +274,7 @@ export default function ForumPage() {
           post={editingPost}
           onClose={() => { setShowEditModal(false); setEditingPost(null); }}
           onEdited={() => { loadPosts(); setShowEditModal(false); setEditingPost(null); }}
+          userId={currentUser}
         />
       )}
     </div>

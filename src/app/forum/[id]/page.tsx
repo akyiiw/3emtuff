@@ -132,6 +132,9 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
       if (error) { alert(error.message); return; }
       setNewComment("");
       await loadComments();
+      // Notify OP
+      const { notifyPostComment } = await import("@/lib/notifications");
+      await notifyPostComment(postId, currentUser);
     } catch (err) {
       if (err instanceof Error) alert(err.message);
     } finally {
@@ -156,7 +159,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
 
   if (loading) return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+      <Navbar userId={currentUser} />
       <main className="max-w-4xl mx-auto px-4 py-12 text-center">
         <p className="text-zinc-500">Carregando...</p>
       </main>
@@ -165,7 +168,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
 
   if (!post) return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+      <Navbar userId={currentUser} />
       <main className="max-w-4xl mx-auto px-4 py-12 text-center">
         <p className="text-zinc-500">Post não encontrado</p>
       </main>
@@ -193,7 +196,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+      <Navbar userId={currentUser} />
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Back */}
@@ -258,6 +261,11 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
             <div className="flex items-center gap-3 mt-2 text-xs text-zinc-400">
               <span className="flex items-center gap-1"><Tag size={11} /> {creatorName}</span>
               <span className="flex items-center gap-1"><Clock size={11} /> {new Date(post.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+              {post.edited_by && (
+                <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400">
+                  <Edit2 size={10} /> editado {new Date(post.updated_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit" })}
+                </span>
+              )}
             </div>
           </div>
 
@@ -392,6 +400,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
           post={post}
           onClose={() => setShowEditModal(false)}
           onEdited={() => { setShowEditModal(false); loadPost(); }}
+          userId={currentUser}
         />
       )}
     </div>

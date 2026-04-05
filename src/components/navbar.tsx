@@ -8,6 +8,7 @@ import { LogOut, MessageSquare, Settings, Sun, Moon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme";
+import { NotificationBell } from "@/components/notification-bell";
 
 const COLOR_MAP: Record<string, string> = {
   "bg-red-500": "#ef4444", "bg-blue-500": "#3b82f6", "bg-green-500": "#22c55e",
@@ -17,7 +18,7 @@ const COLOR_MAP: Record<string, string> = {
   "bg-rose-500": "#f43f5e",
 };
 
-export function Navbar({ onOpenSettings }: { onOpenSettings?: () => void }) {
+export function Navbar({ onOpenSettings, userId }: { onOpenSettings?: () => void; userId?: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -128,6 +129,7 @@ export function Navbar({ onOpenSettings }: { onOpenSettings?: () => void }) {
               <Settings size={16} className="text-zinc-400" />
             </button>
           )}
+          {userId && <NotificationBell userId={userId} />}
           <button
             onClick={handleSignOut}
             className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"

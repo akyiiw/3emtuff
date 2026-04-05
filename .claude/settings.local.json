@@ -16,7 +16,9 @@
       "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\itach\\\\OneDrive\\\\Área de Trabalho\\\\3EM\\\\3emtuff\\\\src\\\\app\\\\forum' -Recurse | Select-Object -ExpandProperty FullName\")",
       "Bash(node -e \":*)",
       "Bash(npx next:*)",
-      "Bash(taskkill //F //IM node.exe)"
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(npx tsc:*)",
+      "Bash(cmd /c \"echo. > \\\\\"C:\\\\\\\\Users\\\\\\\\itach\\\\\\\\OneDrive\\\\\\\\Área de Trabalho\\\\\\\\3EM\\\\\\\\3emtuff\\\\\\\\src\\\\\\\\components\\\\\\\\notification-bell.tsx\\\\\"\")"
     ]
   }
 }

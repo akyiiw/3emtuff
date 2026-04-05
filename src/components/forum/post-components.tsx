@@ -79,6 +79,8 @@ export interface ForumPost {
   post_type: keyof typeof POST_TYPE_CONFIG;
   user_id: string;
   created_at: string;
+  updated_at: string;
+  edited_by: string | null;
   is_pinned?: boolean;
   comment_count?: number;
   item_ref?: { text: string; subject_id: string };
@@ -245,7 +247,13 @@ export function ForumPostCard({ post, isOwner, onDelete, onOpen, onTogglePin, on
             <span className="flex items-center gap-1">
               <Clock size={11} /> {getTimeAgo(post.created_at)}
             </span>
-            
+
+            {/* Edited indicator */}
+            {post.edited_by && post.updated_at && (
+              <span className="flex items-center gap-1 text-amber-500 dark:text-amber-400">
+                <Edit2 size={10} /> editado {getTimeAgo(post.updated_at)}
+              </span>
+            )}
             {subject && (
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white ${subject.color}`}>
                 {subject.emoji} {subject.name}
@@ -426,6 +434,7 @@ interface EditPostModalProps {
   post: ForumPost;
   onClose: () => void;
   onEdited: () => void;
+  userId: string | null;
 }
 
 const MD_BUTTONS: Array<{ label: string; before: string; after: string; cls?: string; divider?: boolean }> = [
@@ -511,15 +520,18 @@ export function CreatePostModal({ onClose, onCreated, defaultItemId }: CreatePos
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
-      const { error } = await supabase.from("forum_posts").insert({
+      const { data, error } = await supabase.from("forum_posts").insert({
         title: title.trim(),
         body: body.trim() || null,
         post_type: postType,
         subject_id: subjectId || null,
         item_id: itemId || null,
         user_id: user.id,
-      });
+      }).select("id").single();
       if (error) throw error;
+      // Dispatch notifications
+      const { notifyNewForumPost } = await import("@/lib/notifications");
+      await notifyNewForumPost(user.id, data.id, title.trim());
       onCreated();
     } catch (err: any) {
       alert(err.message || "Erro ao criar post");
@@ -569,7 +581,7 @@ export function CreatePostModal({ onClose, onCreated, defaultItemId }: CreatePos
   );
 }
 
-export function EditPostModal({ post, onClose, onEdited }: EditPostModalProps) {
+export function EditPostModal({ post, onClose, onEdited, userId }: EditPostModalProps) {
   const [title, setTitle] = useState(post.title);
   const [body, setBody] = useState(post.body ?? "");
   const [postType, setPostType] = useState<keyof typeof POST_TYPE_CONFIG>(post.post_type);
@@ -589,6 +601,8 @@ export function EditPostModal({ post, onClose, onEdited }: EditPostModalProps) {
         post_type: postType,
         subject_id: subjectId || null,
         item_id: itemId || null,
+        edited_by: userId,
+        updated_at: new Date().toISOString(),
       }).eq("id", post.id);
       if (error) throw error;
       onEdited();

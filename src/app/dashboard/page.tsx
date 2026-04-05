@@ -228,7 +228,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar onOpenSettings={() => setShowReminderSettings(true)} />
+      <Navbar onOpenSettings={() => setShowReminderSettings(true)} userId={currentUser} />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* Stats — SÓ atividades */}

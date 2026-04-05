@@ -100,7 +100,11 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
 
       if (isEditing) {
         itemId = editItem!.id;
-        const { error } = await supabase.from("items").update(payload).eq("id", itemId);
+        const { error } = await supabase.from("items").update({
+          ...payload,
+          edited_by: user.id,
+          updated_at: new Date().toISOString(),
+        }).eq("id", itemId);
         if (error) { alert(error.message); return; }
 
         await supabase.from("item_links").delete().eq("item_id", itemId);
@@ -129,6 +133,10 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
             label: link.label.trim() || null,
           });
         }
+
+        // Dispatch notifications
+        const { notifyNewItem } = await import("@/lib/notifications");
+        await notifyNewItem(user.id, itemId, text, itemType, subjectId);
       }
 
       onSave();
