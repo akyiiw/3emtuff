@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
 import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
+import { ReminderSettings } from "@/components/reminder-settings";
 import {
   Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown,
   GraduationCap, FolderOpen, FileText, ChevronRight,
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "pending" | "concluded" | "overdue" | "exams">("all");
   const [showExamPanel, setShowExamPanel] = useState(false);
   const [showDisplayNameModal, setShowDisplayNameModal] = useState(false);
+  const [showReminderSettings, setShowReminderSettings] = useState(false);
 
   // Calendar
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -234,7 +236,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar />
+      <Navbar onOpenSettings={() => setShowReminderSettings(true)} />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* Stats — SÓ atividades */}
@@ -577,6 +579,12 @@ export default function DashboardPage() {
       />
 
       <DisplayNameModal open={showDisplayNameModal} onSave={saveDisplayName} />
+
+      <ReminderSettings
+        open={showReminderSettings}
+        onClose={() => setShowReminderSettings(false)}
+        userId={currentUser}
+      />
     </div>
   );
 }
@@ -632,7 +640,7 @@ function ItemLine({ item, onToggleDone, doneNames, isMineDone, router }: {
   return (
     <div
       onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition cursor-pointer group block"
+      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition cursor-pointer group"
     >
       {isExam ? (
         <div className="w-5 flex justify-center shrink-0 mt-0.5">
@@ -702,7 +710,7 @@ function ExamLine({ item, todayStr, router }: {
   return (
     <div
       onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer group block"
+      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer group"
     >
       <div className="w-5 flex justify-center shrink-0 mt-0.5">
         <GraduationCap size={16} className={`text-red-500 ${isToday ? "animate-pulse" : ""}`} />

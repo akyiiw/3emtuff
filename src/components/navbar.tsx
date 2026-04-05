@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SUBJECTS } from "@/lib/subjects";
-import { LogOut, MessageSquare } from "lucide-react";
+import { LogOut, MessageSquare, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-export function Navbar() {
+export function Navbar({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -81,8 +81,16 @@ export function Navbar() {
           </nav>
         )}
 
-        {/* Right */}
         <div className="flex items-center gap-2 shrink-0 ml-2">
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
+              title="Configurações"
+            >
+              <Settings size={16} className="text-zinc-400" />
+            </button>
+          )}
           <button
             onClick={handleSignOut}
             className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
