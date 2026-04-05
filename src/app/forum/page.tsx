@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
@@ -42,7 +42,6 @@ const POST_TYPE_CONFIG = {
 
 export default function ForumPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [posts, setPosts] = useState<ForumPost[]>([]);
