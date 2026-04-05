@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(python:*)",
+      "Read(//tmp/**)",
+      "Bash(rm /tmp/test_write)",
+      "Bash(/tmp/write_forum.py:*)",
+      "Bash(/tmp/fix_indent.py:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(node -e \"const fs=require\\(''''fs''''\\); const c=fs.readFileSync\\(''''src/components/forum/post-components.tsx'''',''''utf8''''\\); const lines=c.split\\(''''\\\\n''''\\); lines.forEach\\(\\(l,i\\)=>{console.log\\(i+1+'''': ''''+l\\)}\\)\")"
+    ]
+  }
+}

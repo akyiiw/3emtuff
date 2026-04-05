@@ -8,22 +8,14 @@ import { Navbar } from "@/components/navbar";
 import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
 import { ReminderSettings } from "@/components/reminder-settings";
 import {
+  Stat, CollapsibleSection, ItemLine, ExamLine, DisplayNameModal, profileCache,
+} from "@/components/dashboard";
+import type { ItemData } from "@/components/dashboard";
+import {
   Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown,
   GraduationCap, FolderOpen, FileText, ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
-
-interface ItemData {
-  id: string;
-  text: string;
-  description: string | null;
-  due_date: string | null;
-  created_by: string;
-  subject_id: string;
-  item_type: string;
-}
-
-const profileCache: Map<string, string> = new Map();
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -425,7 +417,7 @@ export default function DashboardPage() {
                   <div key={day.key} className="py-2 last:pb-0 first:pt-0">
                     <button
                       onClick={() => setSelectedDay(day.key === selectedDay ? null : day.key)}
-                      className="flex items-center justify-between w-full group"
+                      className="flex items-center justify-between w-full group px-2 py-1 -mx-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <div className={`text-xs font-medium capitalize flex items-center gap-1.5 ${
                         day.isToday
@@ -464,7 +456,7 @@ export default function DashboardPage() {
                               )}
                               <button
                                 onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-                                className={`text-sm text-left cursor-pointer flex-1 truncate ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}
+                                className={`text-sm text-left cursor-pointer flex-1 truncate rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}
                               >
                                 {item.text}
                               </button>
@@ -585,189 +577,6 @@ export default function DashboardPage() {
         onClose={() => setShowReminderSettings(false)}
         userId={currentUser}
       />
-    </div>
-  );
-}
-
-/* ---- sub-components ---- */
-
-function Stat({ icon: Icon, label, value, accent, active, onClick }: {
-  icon: typeof Clock; label: string; value: number; accent?: string; active?: boolean; onClick?: () => void;
-}) {
-  return (
-    <button onClick={onClick}
-      className={`w-full text-left bg-white dark:bg-zinc-900 rounded-xl border p-4 transition-all ${
-        active
-          ? "border-zinc-900 dark:border-zinc-100 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10"
-          : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
-      }`}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <Icon size={16} className="text-zinc-400" />
-        <span className="text-xs text-zinc-500">{label}</span>
-      </div>
-      <p className={`text-2xl font-bold ${accent ?? "text-zinc-900 dark:text-zinc-100"}`}>{value}</p>
-    </button>
-  );
-}
-
-function CollapsibleSection({ title, count, children, accent, defaultOpen }: {
-  title: string; count: number; children: React.ReactNode; accent?: string; defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen ?? true);
-  return (
-    <div className="mb-2">
-      <button onClick={() => setOpen(!open)}
-        className={`w-full text-left text-sm font-semibold mb-1 flex items-center justify-between py-1 ${accent ?? "text-zinc-900 dark:text-zinc-100"}`}
-      >
-        <span>{title} <span className="text-xs text-zinc-400">({count})</span></span>
-        <ChevronDown size={14} className={`text-zinc-400 transition-transform ${open ? "" : "-rotate-90"}`} />
-      </button>
-      {open && <div className="space-y-1.5">{children}</div>}
-    </div>
-  );
-}
-
-function ItemLine({ item, onToggleDone, doneNames, isMineDone, router }: {
-  item: ItemData; onToggleDone: () => void; doneNames: string[]; isMineDone: (item: ItemData) => boolean; router: ReturnType<typeof useRouter>;
-}) {
-  const subj = SUBJECTS.find((s) => s.id === item.subject_id);
-  const typeConfig = ITEM_TYPES[item.item_type as keyof typeof ITEM_TYPES] ?? ITEM_TYPES.activity;
-  const TypeIcon = typeConfig.icon;
-  const isExam = item.item_type === "exam";
-  const mineDone = isMineDone(item);
-
-  return (
-    <div
-      onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition cursor-pointer group"
-    >
-      {isExam ? (
-        <div className="w-5 flex justify-center shrink-0 mt-0.5">
-          <GraduationCap size={16} className="text-red-500" />
-        </div>
-      ) : (
-        <input
-          onClick={(e) => e.stopPropagation()}
-          type="checkbox"
-          checked={mineDone}
-          onChange={onToggleDone}
-          className="w-5 h-5 mt-0.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900"
-        />
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {!isExam && (
-              <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
-            )}
-            <span className={`text-[15px] leading-snug ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate`}>
-              {item.text}
-            </span>
-            {typeConfig !== ITEM_TYPES.activity && !isExam && (
-              <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white ${typeConfig.color}`}>
-                {typeConfig.label.toUpperCase()}
-              </span>
-            )}
-          </div>
-          {subj && (
-            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color} ${subj.darkColor}`}>
-              {subj.emoji} {subj.name}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-1">
-          {item.due_date && (
-            <span className={`text-[11px] ${item.due_date < new Date().toISOString().split("T")[0] && !mineDone ? "text-red-500" : "text-zinc-400"}`}>
-              {new Date(item.due_date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-            </span>
-          )}
-          {item.description && (
-            <span className="text-[11px] text-zinc-400 truncate">{item.description.length > 50 ? item.description.substring(0, 50) + "..." : item.description}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 mt-1 text-[11px]">
-          <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
-            <User size={10} /> {profileCache.get(item.created_by) ?? "Usuário"}
-          </span>
-          {doneNames.length > 0 && (
-            <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
-              <CheckCircle2 size={10} /> {doneNames.join(", ")}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ExamLine({ item, todayStr, router }: {
-  item: ItemData; todayStr: string; router: ReturnType<typeof useRouter>;
-}) {
-  const subj = SUBJECTS.find((s) => s.id === item.subject_id);
-  const isToday = item.due_date === todayStr;
-
-  return (
-    <div
-      onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer group"
-    >
-      <div className="w-5 flex justify-center shrink-0 mt-0.5">
-        <GraduationCap size={16} className={`text-red-500 ${isToday ? "animate-pulse" : ""}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[15px] leading-snug font-medium text-zinc-700 dark:text-zinc-300 truncate">
-            {item.text}
-          </span>
-          {subj && (
-            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color} ${subj.darkColor}`}>
-              {subj.emoji} {subj.name}
-            </span>
-          )}
-        </div>
-        {item.description && (
-          <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{item.description.substring(0, 60)}</p>
-        )}
-        <div className="flex items-center gap-2 mt-1 text-[11px]">
-          {item.due_date && (
-            <span className={`font-medium ${isToday ? "text-red-600 dark:text-red-400" : "text-zinc-400"}`}>
-              {isToday ? "Hoje" : new Date(item.due_date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DisplayNameModal({ open, onSave }: { open: boolean; onSave: (displayName: string) => void }) {
-  const [value, setValue] = useState("");
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-sm mx-4 shadow-xl">
-        <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Escolha seu apelido</h2>
-        <p className="text-sm text-zinc-500 mb-4">Como você quer ser chamado(a) no app?</p>
-        <input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) onSave(value.trim()); }}
-          placeholder="Seu apelido..."
-          maxLength={20}
-          autoFocus
-          className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-        />
-        <button
-          onClick={() => { if (value.trim()) onSave(value.trim()); }}
-          disabled={!value.trim()}
-          className="mt-3 w-full py-2 text-sm font-medium rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition"
-        >
-          Salvar
-        </button>
-      </div>
     </div>
   );
 }
