@@ -168,7 +168,7 @@ export default function DashboardPage() {
   });
 
   // Selected day filter — SÓ atividades
-  const selectedDayItems = selectedDay ? activities.filter((i) => i.due_date === selectedDay) : [];
+  const selectedDayItems = selectedDay ? allItems.filter((i) => i.due_date === selectedDay) : [];
   const selectedDayLabel = selectedDay
     ? new Date(selectedDay + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
     : null;
@@ -543,7 +543,7 @@ export default function DashboardPage() {
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mt-2 mb-2">Resumo por matéria</h3>
             <div className="grid grid-cols-4 gap-2">
               {SUBJECTS.map((s) => {
-                const count = activities.filter((i) => i.subject_id === s.id && !isMineDone(i)).length;
+                const count = allItems.filter((i) => i.subject_id === s.id && i.item_type !== "exam" && !isMineDone(i)).length;
                 return (
                   <Link
                     key={s.id}
