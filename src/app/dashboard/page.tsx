@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "pending" | "concluded" | "overdue" | "exams">("all");
   const [showExamPanel, setShowExamPanel] = useState(false);
+  const [showDisplayNameModal, setShowDisplayNameModal] = useState(false);
 
   // Calendar
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -41,13 +42,29 @@ export default function DashboardPage() {
 
   useEffect(() => { loadUser(); loadItems(); }, []);
 
+  async function saveDisplayName(displayName: string) {
+    if (!currentUser) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("profiles").update({ display_name: displayName }).eq("id", currentUser);
+    if (!error) {
+      profileCache.set(currentUser, displayName);
+      setShowDisplayNameModal(false);
+    }
+  }
+
   async function loadUser() {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUser(user.id);
-        profileCache.set(user.id, user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário");
+        const { data: prof } = await supabase.from("profiles").select("id, display_name").eq("id", user.id).single();
+        if (!prof?.display_name) {
+          setShowDisplayNameModal(true);
+          profileCache.set(user.id, user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário");
+        } else {
+          profileCache.set(user.id, prof.display_name);
+        }
       } else {
         router.replace("/");
       }
@@ -59,8 +76,8 @@ export default function DashboardPage() {
     if (missing.length === 0) return;
     try {
       const supabase = createClient();
-      const { data } = await supabase.from("profiles").select("id, name").in("id", [...new Set(missing)]);
-      for (const p of (data ?? [])) profileCache.set(p.id, p.name);
+      const { data } = await supabase.from("profiles").select("id, display_name").in("id", [...new Set(missing)]);
+      for (const p of (data ?? [])) profileCache.set(p.id, p.display_name ?? "Usuário");
     } catch { /* ignore */ }
   }
 
@@ -250,11 +267,10 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     {(() => {
-                      const upcomingExams = exams.filter((i) => i.due_date && i.due_date >= todayStr);
+                      const todayExams = exams.filter((i) => i.due_date === todayStr);
+                      const futureExams = exams.filter((i) => i.due_date !== null && i.due_date > todayStr);
                       const noDateExams = exams.filter((i) => !i.due_date);
-                      const todayExams = upcomingExams.filter((i) => i.due_date! === todayStr);
-                      const futureExams = upcomingExams.filter((i) => i.due_date! > todayStr);
-                      const expiredExams = exams.filter((i) => i.due_date && i.due_date < todayStr);
+                      const expiredExams = exams.filter((i) => i.due_date !== null && i.due_date < todayStr);
                       return (
                         <>
                           {todayExams.length > 0 && (
@@ -324,7 +340,7 @@ export default function DashboardPage() {
                   </CollapsibleSection>
                 )}
                 {(() => {
-                  const upcoming = activities.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(0, 4);
+                  const upcoming = allItems.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(0, 4);
                   if (upcoming.length === 0) return null;
                   return (
                     <CollapsibleSection title="Pr&oacute;ximas" count={upcoming.length} defaultOpen>
@@ -559,6 +575,8 @@ export default function DashboardPage() {
         onClose={() => setShowModal(false)}
         onSave={() => { loadItems(); setShowModal(false); }}
       />
+
+      <DisplayNameModal open={showDisplayNameModal} onSave={saveDisplayName} />
     </div>
   );
 }
@@ -708,6 +726,37 @@ function ExamLine({ item, todayStr, router }: {
             </span>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DisplayNameModal({ open, onSave }: { open: boolean; onSave: (displayName: string) => void }) {
+  const [value, setValue] = useState("");
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-sm mx-4 shadow-xl">
+        <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Escolha seu apelido</h2>
+        <p className="text-sm text-zinc-500 mb-4">Como voc&ecirc; quer ser chamado(a) no app?</p>
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) onSave(value.trim()); }}
+          placeholder="Seu apelido..."
+          maxLength={20}
+          autoFocus
+          className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+        />
+        <button
+          onClick={() => { if (value.trim()) onSave(value.trim()); }}
+          disabled={!value.trim()}
+          className="mt-3 w-full py-2 text-sm font-medium rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition"
+        >
+          Salvar
+        </button>
       </div>
     </div>
   );
