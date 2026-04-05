@@ -507,7 +507,7 @@ function ItemLine({
         </div>
         <div className="flex items-center gap-2 mt-1">
           {item.due_date && (
-            <span className={`text-[11px] ${item.due_date < todayStr && !isMineDone ? "text-red-500" : "text-zinc-400"}`}>
+            <span className={`text-[11px] ${item.due_date < new Date().toISOString().split("T")[0] && !isMineDone ? "text-red-500" : "text-zinc-400"}`}>
               {new Date(item.due_date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
             </span>
           )}
