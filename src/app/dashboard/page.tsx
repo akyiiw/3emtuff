@@ -8,7 +8,7 @@ import { Navbar } from "@/components/navbar";
 import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
 import {
   Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown,
-  GraduationCap, FolderOpen, FileText, ChevronRight, MessageSquare,
+  GraduationCap, FolderOpen, FileText, ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -28,14 +28,15 @@ export default function DashboardPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [allItems, setAllItems] = useState<ItemData[]>([]);
-  const [doneMap, setDoneMap] = useState<Map<string, Set<string>>>(new Map());
+  const [doneSet, setDoneSet] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "pending" | "concluded" | "overdue">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "pending" | "concluded" | "overdue" | "exams">("all");
+  const [showExamPanel, setShowExamPanel] = useState(false);
 
-  // Calendar state
+  // Calendar
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
-  const [selectedDay, setSelectedDay] = useState<string | null>(null); // null = weekly, else show that day
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showMonthView, setShowMonthView] = useState(false);
 
   useEffect(() => { loadUser(); loadItems(); }, []);
@@ -50,9 +51,7 @@ export default function DashboardPage() {
       } else {
         router.replace("/");
       }
-    } catch {
-      router.replace("/");
-    }
+    } catch { router.replace("/"); }
   }
 
   async function loadProfiles(userIds: string[]) {
@@ -70,26 +69,32 @@ export default function DashboardPage() {
     try {
       const supabase = createClient();
       const { data } = await supabase.from("items").select("*").order("due_date", { ascending: true });
-      const typedItems = data as ItemData[];
-      if (!typedItems) { setAllItems([]); setLoading(false); return; }
-      setAllItems(typedItems);
+      let items = (data as ItemData[]) ?? [];
+
+      // Auto-delete provas que já passaram
+      const todayStr = new Date().toISOString().split("T")[0];
+      const expiredIds = items.filter((i) => i.item_type === "exam" && i.due_date && i.due_date < todayStr).map((i) => i.id);
+      if (expiredIds.length > 0) {
+        await supabase.from("items").delete().in("id", expiredIds);
+        items = items.filter((i) => !expiredIds.includes(i.id));
+      }
+
+      setAllItems(items);
 
       const { data: doneData } = await supabase.from("task_done").select("id, item_id, user_id, done_at");
-      const doneEntries = (doneData ?? []) as { item_id: string; user_id: string }[];
+      const entries = (doneData ?? []) as { item_id: string; user_id: string }[];
       await loadProfiles([
-        ...typedItems.map((i) => i.created_by),
-        ...doneEntries.map((d) => d.user_id),
+        ...items.map((i) => i.created_by),
+        ...entries.map((d) => d.user_id),
       ]);
 
       const d = new Map<string, Set<string>>();
-      for (const done of doneEntries) {
-        if (!d.has(done.item_id)) d.set(done.item_id, new Set());
-        d.get(done.item_id)!.add(done.user_id);
+      for (const e of entries) {
+        if (!d.has(e.item_id)) d.set(e.item_id, new Set());
+        d.get(e.item_id)!.add(e.user_id);
       }
-      setDoneMap(d);
-    } catch {
-      setAllItems([]);
-    }
+      setDoneSet(d);
+    } catch { setAllItems([]); }
     setLoading(false);
   }
 
@@ -99,11 +104,20 @@ export default function DashboardPage() {
     router.replace("/");
   }
 
+  // ============================================================
+  // Provas NUNCA podem ser concluídas
+  // ============================================================
   async function toggleDone(itemId: string) {
+    const item = allItems.find((i) => i.id === itemId);
+    if (!item) return;
+    if (item.item_type === "exam") return; // BLOCKED
     if (!currentUser) return;
+
     const supabase = createClient();
-    const alreadyDone = doneMap.get(itemId)?.has(currentUser);
-    if (alreadyDone) {
+    const set = doneSet.get(itemId);
+    const already = set ? set.has(currentUser) : false;
+
+    if (already) {
       await supabase.from("task_done").delete().eq("item_id", itemId).eq("user_id", currentUser);
     } else {
       await supabase.from("task_done").insert({ item_id: itemId, user_id: currentUser });
@@ -111,27 +125,57 @@ export default function DashboardPage() {
     loadItems();
   }
 
+  // ============================================================
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
 
   function isMineDone(item: ItemData) {
+    if (item.item_type === "exam") return false;
     if (!currentUser) return false;
-    return doneMap.get(item.id)?.has(currentUser) ?? false;
+    return doneSet.get(item.id)?.has(currentUser) ?? false;
   }
 
   function getDoneNames(item: ItemData): string[] {
-    const userIds = doneMap.get(item.id);
-    if (!userIds) return [];
-    return [...userIds].map((id) => profileCache.get(id) ?? "Usuário");
+    const set = doneSet.get(item.id);
+    if (!set) return [];
+    return [...set].map((id) => profileCache.get(id) ?? "Usuário");
   }
 
-  // Provas são tratadas separadamente (sem status de conclusão)
-  const isPast = (d: string | null) => d ? d < todayStr : false;
+  // Separate exams from activities/works
+  const exams = allItems.filter((i) => i.item_type === "exam" && i.due_date);
+  const activities = allItems.filter((i) => i.item_type !== "exam");
 
-  // --- Calendar data ---
+  // Stats — SÓ atividades contam
+  const pendingCount = activities.filter((i) => !isMineDone(i)).length;
+  const doneCount = activities.filter((i) => isMineDone(i)).length;
+  const overdueItems = activities.filter((i) => {
+    if (!i.due_date || isMineDone(i)) return false;
+    return i.due_date < todayStr;
+  });
+  const todayItems = activities.filter((i) => {
+    if (!i.due_date || isMineDone(i)) return false;
+    return i.due_date === todayStr;
+  });
 
-  // Weekly view: next 7 days (inclui provas)
+  // Selected day filter
+  const selectedDayItems = selectedDay ? allItems.filter((i) => i.due_date === selectedDay) : [];
+  const selectedDayLabel = selectedDay
+    ? new Date(selectedDay + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
+    : null;
+
+  // Filter sidebar
+  const filteredItems = (() => {
+    switch (activeFilter) {
+      case "mine": return activities.filter((i) => i.created_by === currentUser);
+      case "pending": return activities.filter((i) => !isMineDone(i));
+      case "concluded": return activities.filter((i) => isMineDone(i));
+      case "overdue": return overdueItems;
+      default: return allItems;
+    }
+  })();
+
+  // Calendar: week
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
@@ -144,7 +188,7 @@ export default function DashboardPage() {
     };
   });
 
-  // Month data: current month + 2
+  // Calendar: month
   function getMonthData(monthOffset: number) {
     const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
     const year = d.getFullYear();
@@ -157,8 +201,7 @@ export default function DashboardPage() {
     const cells: { date: string; day: number; isCurrent: boolean; items: ItemData[] }[] = [];
     for (let i = 0; i < startOffset; i++) {
       const prevDate = new Date(year, month, -startOffset + i + 1);
-      const key = prevDate.toISOString().split("T")[0];
-      cells.push({ date: key, day: prevDate.getDate(), isCurrent: false, items: allItems.filter((it) => it.due_date === key) });
+      cells.push({ date: prevDate.toISOString().split("T")[0], day: prevDate.getDate(), isCurrent: false, items: allItems.filter((it) => it.due_date === prevDate.toISOString().split("T")[0]) });
     }
     for (let day = 1; day <= daysInMonth; day++) {
       const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -176,33 +219,6 @@ export default function DashboardPage() {
     setExpandedMonths(next);
   }
 
-  // Filtered items (provas NÂO contam nas estatísticas)
-  const nonExams = allItems.filter((i) => i.item_type !== "exam");
-  const examItems = allItems.filter((i) => i.item_type === "exam" && i.due_date);
-  const pendingForMe = nonExams.filter((i) => !isMineDone(i)).length;
-  const doneByMe = nonExams.filter((i) => isMineDone(i)).length;
-  const overdueItems = nonExams.filter((i) => {
-    if (!i.due_date || isMineDone(i)) return false;
-    return i.due_date < todayStr;
-  });
-  const todayItems = nonExams.filter((i) => i.due_date === todayStr && !isMineDone(i));
-
-  // If a day is selected from the calendar, show that day's items
-  const selectedDayItems = selectedDay ? allItems.filter((i) => i.due_date === selectedDay) : [];
-  const selectedDayLabel = selectedDay
-    ? new Date(selectedDay + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
-    : null;
-
-  const filteredItems = (() => {
-    switch (activeFilter) {
-      case "mine": return nonExams.filter((i) => i.created_by === currentUser);
-      case "pending": return nonExams.filter((i) => !isMineDone(i));
-      case "concluded": return nonExams.filter((i) => isMineDone(i));
-      case "overdue": return overdueItems;
-      default: return allItems; // all includes exams
-    }
-  })();
-
   function typeColor(itemType: string) {
     return itemType === "exam" ? "bg-red-500" : itemType === "work" ? "bg-purple-500" : "bg-blue-500";
   }
@@ -212,31 +228,74 @@ export default function DashboardPage() {
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {/* Stats */}
+        {/* Stats — SÓ atividades */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <Stat icon={Clock} label="Pendentes" value={pendingForMe} active={activeFilter === "pending"} onClick={() => { setActiveFilter(activeFilter === "pending" ? "all" : "pending"); setSelectedDay(null); }} />
-          <Stat icon={CheckCircle2} label="Conclu&iacute;das" value={doneByMe} accent="text-green-600" active={activeFilter === "concluded"} onClick={() => { setActiveFilter(activeFilter === "concluded" ? "all" : "concluded"); setSelectedDay(null); }} />
-          <Stat icon={AlertTriangle} label="Atrasadas" value={overdueItems.length} accent="text-red-600" active={activeFilter === "overdue"} onClick={() => { setActiveFilter(activeFilter === "overdue" ? "all" : "overdue"); setSelectedDay(null); }} />
-          <Stat icon={Calendar} label="Hoje" value={todayItems.length} active={activeFilter === "mine"} onClick={() => { setActiveFilter(activeFilter === "mine" ? "all" : "mine"); setSelectedDay(null); }} />
+          <Stat icon={Clock} label="Pendentes" value={pendingCount} active={activeFilter === "pending"} onClick={() => { setActiveFilter(activeFilter === "pending" ? "all" : "pending"); setSelectedDay(null); setShowExamPanel(false); }} />
+          <Stat icon={CheckCircle2} label="Conclu&iacute;das" value={doneCount} accent="text-green-600" active={activeFilter === "concluded"} onClick={() => { setActiveFilter(activeFilter === "concluded" ? "all" : "concluded"); setSelectedDay(null); setShowExamPanel(false); }} />
+          <Stat icon={AlertTriangle} label="Atrasadas" value={overdueItems.length} accent="text-red-600" active={activeFilter === "overdue"} onClick={() => { setActiveFilter(activeFilter === "overdue" ? "all" : "overdue"); setSelectedDay(null); setShowExamPanel(false); }} />
+          <Stat icon={GraduationCap} label="Provas" value={exams.length} accent="text-red-600" active={activeFilter === "exams"} onClick={() => { setActiveFilter("all"); setSelectedDay(null); setShowExamPanel((prev) => !prev); }} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-          {/* Left: filtered list */}
+          {/* Left: list */}
           <div className="space-y-1">
-            {/* Selected day filter */}
-            {selectedDay && (
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 capitalize">
-                  {selectedDayLabel}
-                </span>
-                <button onClick={() => setSelectedDay(null)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-1">
-                  Limpar filtro <ChevronDown size={12} className="rotate-90" />
-                </button>
-              </div>
-            )}
-
+            {showExamPanel ? (
+              /* ===== PAINEL DE PROVAS ===== */
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">
+                    <GraduationCap size={14} /> Provas
+                    {exams.length > 0 && <span className="text-xs text-zinc-400">({exams.length})</span>}
+                  </h3>
+                  <button onClick={() => setShowExamPanel(false)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition cursor-pointer">
+                    &larr; Voltar aos itens
+                  </button>
+                </div>
+                {exams.length === 0 ? (
+                  <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+                    <p className="text-zinc-500">Nenhuma prova agendada</p>
+                  </div>
+                ) : (
+                  <>
+                    {(() => {
+                      const todayExams = exams.filter((i) => i.due_date === todayStr);
+                      const futureExams = exams.filter((i) => i.due_date && i.due_date > todayStr);
+                      const noDateExams = exams.filter((i) => !i.due_date);
+                      return (
+                        <>
+                          {todayExams.length > 0 && (
+                            <CollapsibleSection title="Hoje" count={todayExams.length} accent="text-red-600" defaultOpen>
+                              {todayExams.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                            </CollapsibleSection>
+                          )}
+                          {futureExams.length > 0 && (
+                            <CollapsibleSection title="Próximas" count={futureExams.length} accent="text-red-600" defaultOpen>
+                              {futureExams.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                            </CollapsibleSection>
+                          )}
+                          {noDateExams.length > 0 && (
+                            <CollapsibleSection title="Sem data" count={noDateExams.length} accent="text-red-600" defaultOpen>
+                              {noDateExams.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                            </CollapsibleSection>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
+              </>
+            ) : (
+            /* ===== LISTA NORMAL (SÓ ATIVIDADES) ===== */
+            <>
+            {/* Selected day */}
             {selectedDay ? (
               <>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 capitalize">{selectedDayLabel}</span>
+                  <button onClick={() => setSelectedDay(null)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-1">
+                    Limpar filtro <ChevronDown size={12} className="rotate-90" />
+                  </button>
+                </div>
                 {selectedDayItems.length === 0 ? (
                   <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
                     <p className="text-zinc-500">Nenhuma atividade neste dia</p>
@@ -244,7 +303,7 @@ export default function DashboardPage() {
                 ) : (
                   <div className="space-y-1.5">
                     {selectedDayItems.map((item) => (
-                      <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                     ))}
                   </div>
                 )}
@@ -254,58 +313,52 @@ export default function DashboardPage() {
                 {overdueItems.length > 0 && (
                   <CollapsibleSection title="Atrasadas" count={overdueItems.length} accent="text-red-600" defaultOpen>
                     {overdueItems.map((item) => (
-                      <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                     ))}
                   </CollapsibleSection>
                 )}
                 {todayItems.length > 0 && (
                   <CollapsibleSection title="Para hoje" count={todayItems.length} defaultOpen>
                     {todayItems.map((item) => (
-                      <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                     ))}
                   </CollapsibleSection>
                 )}
                 {(() => {
-                  const upcoming = nonExams.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(3);
+                  const upcoming = activities.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(0, 4);
                   if (upcoming.length === 0) return null;
                   return (
                     <CollapsibleSection title="Pr&oacute;ximas" count={upcoming.length} defaultOpen>
                       {upcoming.map((item) => (
-                        <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
                 })()}
                 {(() => {
-                  const noDateItems = nonExams.filter((i) => !i.due_date && !isMineDone(i));
-                  if (noDateItems.length === 0) return null;
+                  const noDates = activities.filter((i) => !i.due_date && !isMineDone(i));
+                  if (noDates.length === 0) return null;
                   return (
-                    <CollapsibleSection title="Sem data" count={noDateItems.length} defaultOpen>
-                      {noDateItems.map((item) => (
-                        <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                    <CollapsibleSection title="Sem data" count={noDates.length} defaultOpen>
+                      {noDates.map((item) => (
+                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
                 })()}
-                {examItems.length > 0 && (
-                  <CollapsibleSection title="Provas" count={examItems.length} accent="text-red-600" defaultOpen={false}>
-                    {examItems.map((item) => (
-                      <ItemLine key={item.id} item={item} isMineDone={false} onToggleDone={() => {}} doneNames={[]} router={router} />
-                    ))}
-                  </CollapsibleSection>
-                )}
+                {/* Provas — só no painel dedicado */}
                 {(() => {
-                  const done = nonExams.filter((i) => isMineDone(i));
+                  const done = activities.filter((i) => isMineDone(i));
                   if (done.length === 0) return null;
                   return (
                     <CollapsibleSection title="Conclu&iacute;das" count={done.length} defaultOpen={false}>
                       {done.map((item) => (
-                        <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
                 })()}
-                {pendingForMe === 0 && doneByMe === 0 && (
+                {pendingCount === 0 && doneCount === 0 && (
                   <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
                     <p className="text-zinc-500">Nada pendente por enquanto</p>
                   </div>
@@ -326,14 +379,16 @@ export default function DashboardPage() {
                     {title} ({filteredItems.length})
                   </h3>
                   {filteredItems.map((item) => (
-                    <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                    <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                   ))}
                 </div>
               );
             })()}
+            </>
+            ) /* end showExamPanel conditional */}
           </div>
 
-          {/* Right: calendar + per-subject */}
+          {/* Right: calendar */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
@@ -348,72 +403,63 @@ export default function DashboardPage() {
             </div>
 
             {!showMonthView ? (
-              /* Weekly view */
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800 p-4">
-                {weekDays.map((day) => {
-                  const hasExam = day.items.some((i) => i.item_type === "exam");
-                  const hasItem = day.items.length > 0;
-                  return (
-                    <div key={day.key} className="py-2 last:pb-0 first:pt-0">
-                      <button
-                        onClick={() => setSelectedDay(day.key === selectedDay ? null : day.key)}
-                        className="flex items-center justify-between w-full group"
-                      >
-                        <p className={`text-xs font-medium ${
-                          day.isToday
-                            ? "text-zinc-900 dark:text-zinc-100 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 w-5 h-5 rounded-full flex items-center justify-center"
-                            : selectedDay === day.key
-                            ? "text-zinc-900 dark:text-zinc-100 font-bold"
-                            : "text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
-                        } capitalize`}>
-                          {day.label}
-                        </p>
-                        {hasItem && (
-                          <div className="flex items-center gap-0.5">
-                            {day.items.slice(0, 4).map((it) => (
-                              <div key={it.id} className={`w-1.5 h-1.5 rounded-full ${typeColor(it.item_type)}`} />
-                            ))}
-                            {day.items.length > 4 && (
-                              <span className="text-[9px] text-zinc-400">+{day.items.length - 4}</span>
-                            )}
-                          </div>
-                        )}
-                      </button>
-                      {hasItem && (
-                        <div className="space-y-1 mt-1 pl-1">
-                          {day.items.map((item) => {
-                            const subj = SUBJECTS.find((s) => s.id === item.subject_id);
-                            const mineDone = isMineDone(item);
-                            return (
-                              <div key={item.id} className="flex items-center gap-2 pl-1">
-                                {item.item_type !== "exam" && (
-                                  <input
-                                    type="checkbox"
-                                    checked={mineDone}
-                                    onChange={() => toggleDone(item.id)}
-                                    className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100 shrink-0"
-                                  />
-                                )}
-                                {item.item_type === "exam" && (
-                                  <GraduationCap size={12} className="text-red-500 shrink-0" />
-                                )}
-                                <button
-                                  onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-                                  className={`text-sm text-left cursor-pointer flex-1 truncate ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}
-                                >
-                                  {item.text}
-                                </button>
-                              </div>
-                            );
-                          })}
+                {weekDays.map((day) => (
+                  <div key={day.key} className="py-2 last:pb-0 first:pt-0">
+                    <button
+                      onClick={() => setSelectedDay(day.key === selectedDay ? null : day.key)}
+                      className="flex items-center justify-between w-full group"
+                    >
+                      <div className={`text-xs font-medium capitalize flex items-center gap-1.5 ${
+                        day.isToday
+                          ? "text-zinc-900 dark:text-zinc-100 font-bold"
+                          : selectedDay === day.key
+                          ? "text-zinc-900 dark:text-zinc-100 font-bold"
+                          : "text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+                      }`}>
+                        {day.label}
+                      </div>
+                      {day.items.length > 0 && (
+                        <div className="flex items-center gap-0.5">
+                          {day.items.slice(0, 4).map((it) => (
+                            <div key={it.id} className={`w-1.5 h-1.5 rounded-full ${typeColor(it.item_type)}`} />
+                          ))}
+                          {day.items.length > 4 && <span className="text-[9px] text-zinc-400">+{day.items.length - 4}</span>}
                         </div>
                       )}
-                    </div>
-                  );
-                })}
+                    </button>
+                    {day.items.length > 0 && (
+                      <div className="space-y-1 mt-1 pl-1">
+                        {day.items.map((item) => {
+                          const mineDone = isMineDone(item);
+                          return (
+                            <div key={item.id} className="flex items-center gap-2 pl-1">
+                              {item.item_type === "exam" ? (
+                                <GraduationCap size={12} className="text-red-500 shrink-0" />
+                              ) : (
+                                <input
+                                  type="checkbox"
+                                  checked={mineDone}
+                                  onChange={(e) => e.stopPropagation()}
+                                  onClick={(e) => { e.stopPropagation(); toggleDone(item.id); }}
+                                  className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100 shrink-0"
+                                />
+                              )}
+                              <button
+                                onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
+                                className={`text-sm text-left cursor-pointer flex-1 truncate ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}
+                              >
+                                {item.text}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             ) : (
-              /* Month view */
               <div className="space-y-3">
                 {months.map((m) => {
                   const expanded = expandedMonths.has(m.monthKey);
@@ -447,22 +493,25 @@ export default function DashboardPage() {
                                 <button
                                   key={idx}
                                   onClick={() => { setSelectedDay(cell.date === selectedDay ? null : cell.date); }}
-                                  className={`text-center py-1 px-0.5 rounded cursor-pointer transition ${
+                                  className={`text-center py-1 px-0.5 transition ${
                                     isToday
-                                      ? "bg-zinc-900 dark:bg-zinc-100 rounded-full font-bold"
+                                      ? "font-bold"
                                       : isSelected
-                                      ? "bg-zinc-200 dark:bg-zinc-700 rounded-full font-bold"
+                                      ? "bg-zinc-200 dark:bg-zinc-700 rounded-full"
                                       : "hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
                                   } ${cell.isCurrent ? "" : "opacity-30"}`}
                                 >
-                                  <span className={`text-[11px] ${isToday ? "text-white dark:text-zinc-900" : ""}`}>{cell.day}</span>
-                                  {hasItems && (
-                                    <div className="flex justify-center gap-0.5 mt-0.5">
-                                      {cell.items.slice(0, 3).map((item) => (
-                                        <div key={item.id} className={`w-1.5 h-1.5 rounded-full ${typeColor(item.item_type)}`} />
-                                      ))}
-                                    </div>
-                                  )}
+                                  <div className="relative flex flex-col items-center">
+                                    <span className="text-[11px]">{cell.day}</span>
+                                    {isToday && <div className="w-1 h-1 rounded-full bg-zinc-900 dark:bg-zinc-100 mt-0.5" />}
+                                    {hasItems && (
+                                      <div className="flex justify-center gap-0.5 mt-0.5">
+                                        {cell.items.slice(0, 3).map((item) => (
+                                          <div key={item.id} className={`w-1.5 h-1.5 rounded-full ${typeColor(item.item_type)}`} />
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </button>
                               );
                             })}
@@ -475,11 +524,11 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Per-subject */}
+            {/* Per-subject - SÓ atividades */}
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mt-2 mb-2">Resumo por mat&eacute;ria</h3>
             <div className="grid grid-cols-4 gap-2">
               {SUBJECTS.map((s) => {
-                const count = allItems.filter((i) => i.subject_id === s.id && !isMineDone(i)).length;
+                const count = activities.filter((i) => i.subject_id === s.id && !isMineDone(i)).length;
                 return (
                   <Link
                     key={s.id}
@@ -554,38 +603,38 @@ function CollapsibleSection({ title, count, children, accent, defaultOpen }: {
   );
 }
 
-function ItemLine({ item, isMineDone, onToggleDone, doneNames, router }: {
-  item: ItemData; isMineDone: boolean; onToggleDone: () => void; doneNames: string[]; router: ReturnType<typeof useRouter>;
+function ItemLine({ item, onToggleDone, doneNames, isMineDone, router }: {
+  item: ItemData; onToggleDone: () => void; doneNames: string[]; isMineDone: (item: ItemData) => boolean; router: ReturnType<typeof useRouter>;
 }) {
   const subj = SUBJECTS.find((s) => s.id === item.subject_id);
   const typeConfig = ITEM_TYPES[item.item_type as keyof typeof ITEM_TYPES] ?? ITEM_TYPES.activity;
   const TypeIcon = typeConfig.icon;
   const isExam = item.item_type === "exam";
+  const mineDone = isMineDone(item);
 
   return (
     <div
       onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
       className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition cursor-pointer group block"
     >
-      {!isExam && (
+      {isExam ? (
+        <div className="w-5 flex justify-center shrink-0 mt-0.5">
+          <GraduationCap size={16} className="text-red-500" />
+        </div>
+      ) : (
         <input
           onClick={(e) => e.stopPropagation()}
           type="checkbox"
-          checked={isMineDone}
+          checked={mineDone}
           onChange={onToggleDone}
           className="w-5 h-5 mt-0.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900"
         />
-      )}
-      {isExam && (
-        <div className="w-5 flex justify-center shrink-0">
-          <GraduationCap size={16} className={`${typeConfig.color.replace("bg-", "text-")}`} />
-        </div>
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
-            <span className={`text-[15px] leading-snug ${isMineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate`}>
+            <span className={`text-[15px] leading-snug ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate`}>
               {item.text}
             </span>
             {typeConfig !== ITEM_TYPES.activity && !isExam && (
@@ -602,7 +651,7 @@ function ItemLine({ item, isMineDone, onToggleDone, doneNames, router }: {
         </div>
         <div className="flex items-center gap-2 mt-1">
           {item.due_date && (
-            <span className={`text-[11px] ${item.due_date < new Date().toISOString().split("T")[0] && !isMineDone ? "text-red-500" : "text-zinc-400"}`}>
+            <span className={`text-[11px] ${item.due_date < new Date().toISOString().split("T")[0] && !mineDone ? "text-red-500" : "text-zinc-400"}`}>
               {new Date(item.due_date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
             </span>
           )}
@@ -617,6 +666,46 @@ function ItemLine({ item, isMineDone, onToggleDone, doneNames, router }: {
           {doneNames.length > 0 && (
             <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
               <CheckCircle2 size={10} /> {doneNames.join(", ")}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExamLine({ item, todayStr, router }: {
+  item: ItemData; todayStr: string; router: ReturnType<typeof useRouter>;
+}) {
+  const subj = SUBJECTS.find((s) => s.id === item.subject_id);
+  const isToday = item.due_date === todayStr;
+
+  return (
+    <div
+      onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
+      className="flex items-start gap-2 p-3 rounded-lg bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer group block"
+    >
+      <div className="w-5 flex justify-center shrink-0 mt-0.5">
+        <GraduationCap size={16} className={`text-red-500 ${isToday ? "animate-pulse" : ""}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[15px] leading-snug font-medium text-zinc-700 dark:text-zinc-300 truncate">
+            {item.text}
+          </span>
+          {subj && (
+            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color}`}>
+              {subj.emoji} {subj.name}
+            </span>
+          )}
+        </div>
+        {item.description && (
+          <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{item.description.substring(0, 60)}</p>
+        )}
+        <div className="flex items-center gap-2 mt-1 text-[11px]">
+          {item.due_date && (
+            <span className={`font-medium ${isToday ? "text-red-600 dark:text-red-400" : "text-zinc-400"}`}>
+              {isToday ? "Hoje" : new Date(item.due_date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
             </span>
           )}
         </div>

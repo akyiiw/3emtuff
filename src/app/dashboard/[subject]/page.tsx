@@ -101,7 +101,16 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
         .eq("subject_id", subjectId)
         .order("due_date", { ascending: true });
       if (data) {
-        const loaded = data as Item[];
+        let loaded = data as Item[];
+
+        // Auto-delete provas que já passaram
+        const todayStr = new Date().toISOString().split("T")[0];
+        const expiredIds = loaded.filter((i) => i.item_type === "exam" && i.due_date && i.due_date < todayStr).map((i) => i.id);
+        if (expiredIds.length > 0) {
+          await supabase.from("items").delete().in("id", expiredIds);
+          loaded = loaded.filter((i) => !expiredIds.includes(i.id));
+        }
+
         setItems(loaded);
 
         // Load done + profiles
