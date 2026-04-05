@@ -224,7 +224,8 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   const exams = items.filter((i) => i.item_type === "exam");
 
   // Subject accent color
-  const colorClass = subject?.color ?? "bg-zinc-500";
+  const colorClass = `${subject?.color ?? "bg-zinc-500"} ${subject?.darkColor ?? ""}`;
+
   const textCol = subject?.textCol ?? "text-zinc-500";
   const borderAccent = subject?.accent ?? "border-zinc-500";
 

@@ -671,7 +671,7 @@ function ItemLine({ item, onToggleDone, doneNames, isMineDone, router }: {
             )}
           </div>
           {subj && (
-            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color}`}>
+            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color} ${subj.darkColor}`}>
               {subj.emoji} {subj.name}
             </span>
           )}
@@ -721,7 +721,7 @@ function ExamLine({ item, todayStr, router }: {
             {item.text}
           </span>
           {subj && (
-            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color}`}>
+            <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color} ${subj.darkColor}`}>
               {subj.emoji} {subj.name}
             </span>
           )}
