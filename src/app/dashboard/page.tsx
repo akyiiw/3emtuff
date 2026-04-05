@@ -78,16 +78,17 @@ export default function DashboardPage() {
       setAllItems(doneItems);
 
       // Collect all user IDs (creators + done users)
-      const { data: doneData } = await supabase.from("task_done").select("*");
+      const { data: doneData } = await supabase.from("task_done").select("id, item_id, user_id, done_at");
+      const doneEntries = (doneData ?? []) as { item_id: string; user_id: string }[];
       const allUserIds = [
         ...doneItems.map((i) => i.created_by),
-        ...(doneData ?? []).map((d) => d.user_id),
+        ...doneEntries.map((d) => d.user_id),
       ];
       await loadProfiles(allUserIds);
 
       // Build done map
       const d = new Map<string, Set<string>>();
-      for (const done of (doneData ?? [])) {
+      for (const done of doneEntries) {
         if (!d.has(done.item_id)) d.set(done.item_id, new Set());
         d.get(done.item_id)!.add(done.user_id);
       }
