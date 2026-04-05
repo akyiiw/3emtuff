@@ -303,7 +303,7 @@ export default function DashboardPage() {
                 ) : (
                   <div className="space-y-1.5">
                     {selectedDayItems.map((item) => (
-                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                     ))}
                   </div>
                 )}
@@ -313,14 +313,14 @@ export default function DashboardPage() {
                 {overdueItems.length > 0 && (
                   <CollapsibleSection title="Atrasadas" count={overdueItems.length} accent="text-red-600" defaultOpen>
                     {overdueItems.map((item) => (
-                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                     ))}
                   </CollapsibleSection>
                 )}
                 {todayItems.length > 0 && (
                   <CollapsibleSection title="Para hoje" count={todayItems.length} defaultOpen>
                     {todayItems.map((item) => (
-                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                     ))}
                   </CollapsibleSection>
                 )}
@@ -330,7 +330,7 @@ export default function DashboardPage() {
                   return (
                     <CollapsibleSection title="Pr&oacute;ximas" count={upcoming.length} defaultOpen>
                       {upcoming.map((item) => (
-                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
@@ -341,7 +341,7 @@ export default function DashboardPage() {
                   return (
                     <CollapsibleSection title="Sem data" count={noDates.length} defaultOpen>
                       {noDates.map((item) => (
-                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
@@ -353,7 +353,7 @@ export default function DashboardPage() {
                   return (
                     <CollapsibleSection title="Conclu&iacute;das" count={done.length} defaultOpen={false}>
                       {done.map((item) => (
-                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
@@ -379,7 +379,7 @@ export default function DashboardPage() {
                     {title} ({filteredItems.length})
                   </h3>
                   {filteredItems.map((item) => (
-                    <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                    <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                   ))}
                 </div>
               );
