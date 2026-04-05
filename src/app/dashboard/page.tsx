@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
-import { CreateModal } from "@/components/create-modal";
-import { Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown } from "lucide-react";
+import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
+import { Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown, ChevronRight, ChevronLeft, GraduationCap, FolderOpen, FileText } from "lucide-react";
 import Link from "next/link";
 
 interface ItemData {
@@ -16,10 +16,16 @@ interface ItemData {
   due_date: string | null;
   created_by: string;
   subject_id: string;
+  item_type: string;
 }
 
-// Global profile cache across all pages
 const profileCache: Map<string, string> = new Map();
+
+const ITEM_TYPE_ICONS: Record<string, typeof FileText> = {
+  exam: GraduationCap,
+  work: FolderOpen,
+  activity: FileText,
+};
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -30,6 +36,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "pending" | "concluded" | "overdue">("all");
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadUser(); loadItems(); }, []);
 
@@ -49,7 +56,6 @@ export default function DashboardPage() {
     }
   }
 
-  /** Resolve ALL user IDs to names using the profiles table */
   async function loadProfiles(userIds: string[]) {
     const missing = userIds.filter((id) => id && !profileCache.has(id));
     if (missing.length === 0) return;
@@ -57,7 +63,6 @@ export default function DashboardPage() {
       const supabase = createClient();
       const { data } = await supabase.from("profiles").select("id, name").in("id", [...new Set(missing)]);
       for (const p of (data ?? [])) {
-        profileCache.set(p.id, p.name);
         profileCache.set(p.id, p.name);
       }
     } catch { /* profiles table may not exist yet */ }
@@ -72,21 +77,19 @@ export default function DashboardPage() {
         .select("*")
         .order("due_date", { ascending: true });
 
-      const doneItems = data as ItemData[];
-      if (!doneItems) { setAllItems([]); setLoading(false); return; }
+      const typedItems = data as ItemData[];
+      if (!typedItems) { setAllItems([]); setLoading(false); return; }
 
-      setAllItems(doneItems);
+      setAllItems(typedItems);
 
-      // Collect all user IDs (creators + done users)
       const { data: doneData } = await supabase.from("task_done").select("id, item_id, user_id, done_at");
       const doneEntries = (doneData ?? []) as { item_id: string; user_id: string }[];
       const allUserIds = [
-        ...doneItems.map((i) => i.created_by),
+        ...typedItems.map((i) => i.created_by),
         ...doneEntries.map((d) => d.user_id),
       ];
       await loadProfiles(allUserIds);
 
-      // Build done map
       const d = new Map<string, Set<string>>();
       for (const done of doneEntries) {
         if (!d.has(done.item_id)) d.set(done.item_id, new Set());
@@ -134,7 +137,6 @@ export default function DashboardPage() {
     return [...userIds].map((id) => profileCache.get(id) ?? "Usuário");
   }
 
-  // Stats
   const pendingForMe = allItems.filter((i) => !isMineDone(i)).length;
   const doneByMe = allItems.filter((i) => isMineDone(i)).length;
   const overdueItems = allItems.filter((i) => {
@@ -146,33 +148,57 @@ export default function DashboardPage() {
     return i.due_date === todayStr;
   });
 
-  // 7-day calendar
-  const nextDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().split("T")[0];
-    return {
-      label: d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }),
-      key,
-      items: allItems.filter((item) => item.due_date === key),
-    };
-  });
+  // Monthly calendar data
+  // Show current month + 2 next months
+  function getMonthData(monthOffset: number) {
+    const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const monthName = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Filtered left side
+    // Build calendar grid (Mon-Sun)
+    const firstDay = new Date(year, month, 1).getDay();
+    const startOffset = (firstDay + 6) % 7; // Monday = 0
+    const cells: { date: string; day: number; isCurrent: boolean; items: ItemData[] }[] = [];
+    for (let i = 0; i < startOffset; i++) {
+      const prevDate = new Date(year, month, -startOffset + i + 1);
+      const key = prevDate.toISOString().split("T")[0];
+      cells.push({ date: key, day: prevDate.getDate(), isCurrent: false, items: allItems.filter((it) => it.due_date === key) });
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      cells.push({ date: key, day, isCurrent: true, items: allItems.filter((it) => it.due_date === key) });
+    }
+    const remainder = (42 - cells.length) % 7;
+    for (let i = 1; i <= (remainder === 0 ? 0 : remainder); i++) {
+      const nextDate = new Date(year, month + 1, i);
+      const key = nextDate.toISOString().split("T")[0];
+      cells.push({ date: key, day: i, isCurrent: false, items: allItems.filter((it) => it.due_date === key) });
+    }
+
+    return { monthKey, monthName, cells, year, month };
+  }
+
+  const months = [getMonthData(0), getMonthData(1), getMonthData(2)];
+
   const filteredItems = (() => {
     switch (activeFilter) {
-      case "mine":
-        return allItems.filter((i) => i.created_by === currentUser);
-      case "pending":
-        return allItems.filter((i) => !isMineDone(i));
-      case "concluded":
-        return allItems.filter((i) => isMineDone(i));
-      case "overdue":
-        return overdueItems;
-      default:
-        return allItems;
+      case "mine": return allItems.filter((i) => i.created_by === currentUser);
+      case "pending": return allItems.filter((i) => !isMineDone(i));
+      case "concluded": return allItems.filter((i) => isMineDone(i));
+      case "overdue": return overdueItems;
+      default: return allItems;
     }
   })();
+
+  function toggleMonth(key: string) {
+    const next = new Set(expandedMonths);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setExpandedMonths(next);
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -187,7 +213,7 @@ export default function DashboardPage() {
           <Stat icon={Calendar} label="Hoje" value={todayItems.length} active={activeFilter === "mine"} onClick={() => setActiveFilter(activeFilter === "mine" ? "all" : "mine")} />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           {/* Left: filtered list */}
           <div className="space-y-1">
             {activeFilter === "all" ? (
@@ -213,7 +239,7 @@ export default function DashboardPage() {
                   }).slice(3);
                   if (upcoming.length === 0) return null;
                   return (
-                    <CollapsibleSection title="Pró ximas" count={upcoming.length} defaultOpen>
+                    <CollapsibleSection title="Pr&oacute;ximas" count={upcoming.length} defaultOpen>
                       {upcoming.map((item) => (
                         <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
@@ -272,44 +298,86 @@ export default function DashboardPage() {
 
           {/* Right: calendar + per-subject */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Pr&oacute;ximos 7 dias</h3>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800 p-4">
-              {nextDays.map((day) => (
-                <div key={day.key} className="py-2 last:pb-0 first:pt-0">
-                  <p className="text-xs text-zinc-400 capitalize mb-1">{day.label}</p>
-                  {day.items.length > 0 ? (
-                    <div className="space-y-1 pl-3">
-                      {day.items.map((item) => {
-                        const subj = SUBJECTS.find((s) => s.id === item.subject_id);
-                        const mineDone = isMineDone(item);
-                        return (
-                          <div key={item.id} className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={mineDone}
-                              onChange={() => toggleDone(item.id)}
-                              className="w-3.5 h-3.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100 shrink-0"
-                            />
-                            <button
-                              onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
-                              className={`text-sm text-left cursor-pointer flex-1 truncate ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}
-                            >
-                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${subj?.color ?? "bg-zinc-400"}`} />
-                              {item.text}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-zinc-300 dark:text-zinc-600">Livre</p>
-                  )}
-                </div>
-              ))}
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+              <Calendar size={14} /> Calend&aacute;rio
+            </h3>
+
+            {/* Monthly calendars */}
+            <div className="space-y-3">
+              {months.map((m) => {
+                const expanded = expandedMonths.has(m.monthKey);
+                const monthItemMap: Record<string, ItemData[]> = {};
+                for (const cell of m.cells) {
+                  if (cell.items.length > 0) monthItemMap[cell.date] = cell.items;
+                }
+
+                return (
+                  <div key={m.monthKey} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                    {/* Month header - clickable */}
+                    <button
+                      onClick={() => toggleMonth(m.monthKey)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition capitalize"
+                    >
+                      <span className="flex items-center gap-2">
+                        {m.monthName}
+                        <span className="text-xs text-zinc-400 font-normal">
+                          ({Object.values(monthItemMap).flat().length} itens)
+                        </span>
+                      </span>
+                      {expanded ? <ChevronDown size={14} className="text-zinc-400" /> : <ChevronRight size={14} className="text-zinc-400" />}
+                    </button>
+
+                    {/* Expanded calendar grid */}
+                    {expanded && (
+                      <div className="px-3 pb-3">
+                        {/* Day headers */}
+                        <div className="grid grid-cols-7 gap-0 mb-1">
+                          {["Seg", "Ter", "Qua", "Qui", "Sex", "S&aacute;b", "Dom"].map((d) => (
+                            <div key={d} className="text-center text-[10px] text-zinc-400 py-1">{d}</div>
+                          ))}
+                        </div>
+                        {/* Calendar grid */}
+                        <div className="grid grid-cols-7 gap-0">
+                          {m.cells.map((cell, idx) => {
+                            const isToday = cell.date === todayStr;
+                            const itemsForDay = cell.items ?? [];
+                            const hasItems = itemsForDay.length > 0;
+                            return (
+                              <div
+                                key={idx}
+                                className={`text-center py-0.5 px-0.5 rounded ${
+                                  cell.isCurrent ? "" : "opacity-30"
+                                } ${isToday ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-full font-bold" : ""}`}
+                              >
+                                <span className="text-[11px] leading-5 block">{cell.day}</span>
+                                {hasItems && (
+                                  <div className="flex justify-center gap-0.5 mt-0.5">
+                                    {itemsForDay.slice(0, 3).map((item) => {
+                                      const color = item.item_type === "exam" ? "bg-red-500" : item.item_type === "work" ? "bg-purple-500" : "bg-blue-500";
+                                      return (
+                                        <div
+                                          key={item.id}
+                                          onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
+                                          className={`w-1.5 h-1.5 rounded-full cursor-pointer ${color}`}
+                                          title={item.text}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Per-subject summary */}
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mt-6 mb-2">Resumo por mat&eacute;ria</h3>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mt-2 mb-2">Resumo por mat&eacute;ria</h3>
             <div className="grid grid-cols-4 gap-2">
               {SUBJECTS.map((s) => {
                 const count = allItems.filter((i) => i.subject_id === s.id && !isMineDone(i)).length;
@@ -355,8 +423,7 @@ function Stat({ icon: Icon, label, value, accent, active, onClick }: {
   icon: typeof Clock; label: string; value: number; accent?: string; active?: boolean; onClick?: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       className={`w-full text-left bg-white dark:bg-zinc-900 rounded-xl border p-4 transition-all ${
         active
           ? "border-zinc-900 dark:border-zinc-100 ring-2 ring-zinc-900/10 dark:ring-zinc-100/10"
@@ -373,30 +440,19 @@ function Stat({ icon: Icon, label, value, accent, active, onClick }: {
 }
 
 function CollapsibleSection({
-  title,
-  count,
-  children,
-  accent,
-  defaultOpen,
+  title, count, children, accent, defaultOpen,
 }: {
-  title: string;
-  count: number;
-  children: React.ReactNode;
-  accent?: string;
-  defaultOpen?: boolean;
+  title: string; count: number; children: React.ReactNode; accent?: string; defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? true);
   return (
     <div className="mb-2">
-      <button
-        onClick={() => setOpen(!open)}
+      <button onClick={() => setOpen(!open)}
         className={`w-full text-left text-sm font-semibold mb-1 flex items-center justify-between py-1 ${
           accent ?? "text-zinc-900 dark:text-zinc-100"
         }`}
       >
-        <span>
-          {title} <span className="text-xs text-zinc-400">({count})</span>
-        </span>
+        <span>{title} <span className="text-xs text-zinc-400">({count})</span></span>
         <ChevronDown size={14} className={`text-zinc-400 transition-transform ${open ? "" : "-rotate-90"}`} />
       </button>
       {open && <div className="space-y-1.5">{children}</div>}
@@ -405,19 +461,14 @@ function CollapsibleSection({
 }
 
 function ItemLine({
-  item,
-  isMineDone,
-  onToggleDone,
-  doneNames,
-  router,
+  item, isMineDone, onToggleDone, doneNames, router,
 }: {
-  item: ItemData;
-  isMineDone: boolean;
-  onToggleDone: () => void;
-  doneNames: string[];
-  router: ReturnType<typeof useRouter>;
+  item: ItemData; isMineDone: boolean; onToggleDone: () => void; doneNames: string[]; router: ReturnType<typeof useRouter>;
 }) {
   const subj = SUBJECTS.find((s) => s.id === item.subject_id);
+  const typeConfig = ITEM_TYPES[item.item_type as keyof typeof ITEM_TYPES] ?? ITEM_TYPES.activity;
+  const TypeIcon = typeConfig.icon;
+
   return (
     <div
       onClick={() => router.push(`/dashboard/${item.subject_id}?item=${item.id}`)}
@@ -432,9 +483,22 @@ function ItemLine({
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-[15px] leading-snug ${isMineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}>
-            {item.text}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
+            <span className={`text-[15px] leading-snug ${isMineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate`}>
+              {item.text}
+            </span>
+            {item.item_type === "exam" && (
+              <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-500">
+                PROVA
+              </span>
+            )}
+            {item.item_type === "work" && (
+              <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white bg-purple-500">
+                TRABALHO
+              </span>
+            )}
+          </div>
           {subj && (
             <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white ${subj.color}`}>
               {subj.emoji} {subj.name}
@@ -443,7 +507,7 @@ function ItemLine({
         </div>
         <div className="flex items-center gap-2 mt-1">
           {item.due_date && (
-            <span className={`text-[11px] ${item.due_date < new Date().toISOString().split("T")[0] && !isMineDone ? "text-red-500" : "text-zinc-400"}`}>
+            <span className={`text-[11px] ${item.due_date < todayStr && !isMineDone ? "text-red-500" : "text-zinc-400"}`}>
               {new Date(item.due_date + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
             </span>
           )}

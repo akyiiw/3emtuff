@@ -55,9 +55,12 @@ create table items (
   text text not null,
   description text,
   due_date date,
+  item_type text not null default 'activity', -- activity, exam, work
   created_by uuid references auth.users(id) on delete cascade not null,
   created_at timestamptz default now()
 );
+
+create index idx_items_type on items(item_type);
 
 -- Links anexados
 create table item_links (

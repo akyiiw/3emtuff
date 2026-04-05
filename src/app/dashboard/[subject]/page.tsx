@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
-import { CreateModal } from "@/components/create-modal";
+import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
 import {
   Calendar, ExternalLink, LinkIcon, User,
   CheckCircle2, Undo2, Trash2, AlertTriangle, Edit2, Check,
+  GraduationCap, FolderOpen, FileText,
 } from "lucide-react";
 
 declare global {
@@ -23,6 +24,7 @@ interface Item {
   due_date: string | null;
   created_by: string;
   subject_id: string;
+  item_type: string;
 }
 
 interface LinkEntry {
@@ -403,6 +405,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
         editItem={editMode && selectedItem ? {
           id: selectedItem.id, text: selectedItem.text, description: selectedItem.description,
           due_date: selectedItem.due_date, subject_id: selectedItem.subject_id,
+          item_type: selectedItem.item_type,
           links: itemLinks.map((l) => ({ id: l.id, url: l.url, label: l.label ?? "" })),
         } : null}
       />
@@ -444,6 +447,8 @@ function ItemCard({ item, active, onClick, onToggle, doneByMe, doneList }: {
     : null;
   const isOverdue = item.due_date && !doneByMe && item.due_date < new Date().toISOString().split("T")[0];
   const stripeColor = subj?.color?.replace("bg-", "border-") ?? "border-zinc-400";
+  const typeConfig = ITEM_TYPES[item.item_type as keyof typeof ITEM_TYPES] ?? ITEM_TYPES.activity;
+  const TypeIcon = typeConfig.icon;
 
   return (
     <div onClick={onClick}
@@ -456,9 +461,18 @@ function ItemCard({ item, active, onClick, onToggle, doneByMe, doneList }: {
       <input type="checkbox" checked={doneByMe} onClick={(e) => e.stopPropagation()} onChange={onToggle}
         className="w-5 h-5 mt-0.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className={`text-[15px] leading-snug ${doneByMe ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"}`}>
-          {item.text}
-        </p>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
+          <p className={`text-[15px] leading-snug ${doneByMe ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate flex-1`}>
+            {item.text}
+          </p>
+          {item.item_type === "exam" && (
+            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-500">PROVA</span>
+          )}
+          {item.item_type === "work" && (
+            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white bg-purple-500">TRABALHO</span>
+          )}
+        </div>
         <div className="flex items-center gap-3 mt-1.5">
           {dueFormatted && (
             <span className={`text-[11px] font-medium ${isOverdue ? "text-red-500" : "text-zinc-400"}`}>{dueFormatted}</span>

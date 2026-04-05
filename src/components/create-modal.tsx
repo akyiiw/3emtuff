@@ -2,8 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { SUBJECTS } from "@/lib/subjects";
-import { X, Plus, Calendar, LinkIcon, Trash2 } from "lucide-react";
+import { X, Plus, Calendar, LinkIcon, Trash2, FileText, GraduationCap, FolderOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+
+export const ITEM_TYPES = {
+  activity: { label: "Atividade", icon: FileText, color: "bg-blue-500" },
+  work: { label: "Trabalho", icon: FolderOpen, color: "bg-purple-500" },
+  exam: { label: "Prova", icon: GraduationCap, color: "bg-red-500" },
+} as const;
 
 interface LinkEntry {
   id?: string;
@@ -22,6 +28,7 @@ interface Props {
     description: string | null;
     due_date: string | null;
     subject_id: string;
+    item_type?: string;
     links: LinkEntry[];
   } | null;
 }
@@ -31,6 +38,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [subjectId, setSubjectId] = useState("");
+  const [itemType, setItemType] = useState<"activity" | "work" | "exam">("activity");
   const [links, setLinks] = useState<LinkEntry[]>([]);
 
   const isEditing = !!editItem;
@@ -42,6 +50,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
         setDescription(editItem.description ?? "");
         setDate(editItem.due_date ?? "");
         setSubjectId(editItem.subject_id);
+        setItemType((editItem.item_type as typeof itemType) ?? "activity");
         setLinks(editItem.links);
       } else {
         setText("");
@@ -49,6 +58,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
         setDate("");
         setSubjectId(defaultSubject ?? "");
         setLinks([]);
+        setItemType("activity");
       }
     }
   }, [open, editItem, defaultSubject]);
@@ -80,17 +90,19 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
 
       let itemId: string;
 
+      const payload = {
+        subject_id: subjectId || undefined as string | undefined,
+        text,
+        description: description.trim() || null,
+        due_date: date || null,
+        item_type: itemType,
+      };
+
       if (isEditing) {
         itemId = editItem!.id;
-        const { error } = await supabase.from("items").update({
-          subject_id: subjectId || undefined,
-          text,
-          description: description.trim() || null,
-          due_date: date || null,
-        }).eq("id", itemId);
+        const { error } = await supabase.from("items").update(payload).eq("id", itemId);
         if (error) { alert(error.message); return; }
 
-        // Delete old links and re-insert
         await supabase.from("item_links").delete().eq("item_id", itemId);
 
         const validLinks = links.filter((l) => l.url.trim());
@@ -103,16 +115,12 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
         }
       } else {
         const { data, error } = await supabase.from("items").insert({
-          subject_id: subjectId || null,
-          text,
-          description: description.trim() || null,
-          due_date: date || null,
+          ...payload,
           created_by: user.id,
         }).select("id").single();
         if (error) { alert(error.message); return; }
         itemId = data.id;
 
-        // Insert links
         const validLinks = links.filter((l) => l.url.trim());
         for (const link of validLinks) {
           await supabase.from("item_links").insert({
@@ -144,6 +152,32 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Item Type Selector */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+              Tipo
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(ITEM_TYPES).map(([key, config]) => {
+                const Icon = config.icon;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setItemType(key as typeof itemType)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                      itemType === key
+                        ? `${config.color} text-white`
+                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    }`}
+                  >
+                    <Icon size={13} /> {config.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Subject selector */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
@@ -181,14 +215,14 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              O que precisa fazer?
+              {itemType === "exam" ? "Nome da prova?" : itemType === "work" ? "Nome do trabalho?" : "O que precisa fazer?"}
             </label>
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-              placeholder="Ex: Trabalho de física sobre termodinâmica..."
+              placeholder={itemType === "exam" ? "Ex: P2 de Cálculo..." : itemType === "work" ? "Ex: Trabalho de história sobre..." : "Ex: Lista 3 de exercícios..."}
               required
             />
           </div>
@@ -210,7 +244,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
           {/* Date */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
-              <Calendar size={14} /> Data de entrega
+              <Calendar size={14} /> {itemType === "exam" ? "Data da prova" : "Data de entrega"}
             </label>
             <input
               type="date"

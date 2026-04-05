@@ -15,9 +15,9 @@ export interface Database {
         Update: { id?: string; name?: string; created_at?: string; updated_at?: string };
       };
       items: {
-        Row: { id: string; subject_id: string; text: string; description: string | null; due_date: string | null; created_by: string; created_at: string };
-        Insert: { id?: string; subject_id: string; text: string; description?: string | null; due_date?: string | null; created_by: string; created_at?: string };
-        Update: { id?: string; subject_id?: string; text?: string; description?: string | null; due_date?: string | null; created_by?: string; created_at?: string };
+        Row: { id: string; subject_id: string; text: string; description: string | null; due_date: string | null; item_type: string; created_by: string; created_at: string };
+        Insert: { id?: string; subject_id: string; text: string; description?: string | null; due_date?: string | null; item_type?: string; created_by: string; created_at?: string };
+        Update: { id?: string; subject_id?: string; text?: string; description?: string | null; due_date?: string | null; item_type?: string; created_by?: string; created_at?: string };
       };
       item_links: {
         Row: { id: string; item_id: string; url: string; label: string | null; created_at: string };
@@ -28,6 +28,16 @@ export interface Database {
         Row: { id: string; item_id: string; user_id: string; done_at: string };
         Insert: { id?: string; item_id: string; user_id: string; done_at?: string };
         Update: { id?: string; item_id?: string; user_id?: string; done_at?: string };
+      };
+      forum_posts: {
+        Row: { id: string; subject_id: string | null; item_id: string | null; title: string; body: string | null; post_type: string; user_id: string; created_at: string; updated_at: string };
+        Insert: { id?: string; subject_id?: string | null; item_id?: string | null; title: string; body?: string | null; post_type?: string; user_id: string; created_at?: string; updated_at?: string };
+        Update: { id?: string; subject_id?: string | null; item_id?: string | null; title?: string; body?: string | null; post_type?: string; user_id?: string; created_at?: string; updated_at?: string };
+      };
+      forum_comments: {
+        Row: { id: string; post_id: string; body: string; user_id: string; created_at: string; updated_at: string };
+        Insert: { id?: string; post_id: string; body: string; user_id: string; created_at?: string; updated_at?: string };
+        Update: { id?: string; post_id?: string; body?: string; user_id?: string; created_at?: string; updated_at?: string };
       };
     };
     Views: Record<string, never>;
