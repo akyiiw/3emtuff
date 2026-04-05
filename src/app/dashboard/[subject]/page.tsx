@@ -102,10 +102,10 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
         setItems(loaded);
 
         // Load done + profiles
-        const { data: doneData } = await supabase.from("task_done").select("*");
+        const { data: doneData } = await supabase.from("task_done").select("id, item_id, user_id, done_at");
         const allUserIds = [
           ...loaded.map((i) => i.created_by),
-          ...(doneData ?? []).map((d) => d.user_id),
+          ...(doneData ?? []).map((d: { user_id: string }) => d.user_id),
         ];
         await loadProfiles(allUserIds);
 
