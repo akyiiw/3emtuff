@@ -7,8 +7,16 @@
       "Bash(rm /tmp/test_write)",
       "Bash(/tmp/write_forum.py:*)",
       "Bash(/tmp/fix_indent.py:*)",
-      "mcp__ide__getDiagnostics",
-      "Bash(node -e \"const fs=require\\(''''fs''''\\); const c=fs.readFileSync\\(''''src/components/forum/post-components.tsx'''',''''utf8''''\\); const lines=c.split\\(''''\\\\n''''\\); lines.forEach\\(\\(l,i\\)=>{console.log\\(i+1+'''': ''''+l\\)}\\)\")"
+      "Bash(dir:*)",
+      "Bash(npx --yes marked@latest)",
+      "Bash(npm install:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(findstr /n \"insertTextAtCursor\\\\|insertMarkdown\")",
+      "Bash(cmd /c 'dir \"C:\\\\Users\\\\itach\\\\OneDrive\\\\Área de Trabalho\\\\3EM\\\\3emtuff\\\\src\\\\app\\\\forum\" /s /b')",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\itach\\\\OneDrive\\\\Área de Trabalho\\\\3EM\\\\3emtuff\\\\src\\\\app\\\\forum' -Recurse | Select-Object -ExpandProperty FullName\")",
+      "Bash(node -e \":*)",
+      "Bash(npx next:*)",
+      "Bash(taskkill //F //IM node.exe)"
     ]
   }
 }

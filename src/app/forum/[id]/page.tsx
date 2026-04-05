@@ -7,22 +7,10 @@ import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
 import {
   ArrowLeft, Send, Trash2, MessageSquare, Tag, Clock,
-  FileText, BookOpen, ArrowUpRight, Edit3, Reply, AlertTriangle,
+  FileText, BookOpen, ArrowUpRight, Edit2, Edit3, Reply, AlertTriangle, Pin,
 } from "lucide-react";
-
-const profileCache = new Map<string, string>();
-
-interface ForumPost {
-  id: string;
-  subject_id: string | null;
-  item_id: string | null;
-  title: string;
-  body: string | null;
-  post_type: "discussion" | "answer" | "resource" | "summary";
-  user_id: string;
-  created_at: string;
-  item_ref?: { text: string; subject_id: string };
-}
+import { MarkdownPreview, profileCache, EditPostModal } from "@/components/forum";
+import type { ForumPost } from "@/components/forum";
 
 interface Comment {
   id: string;
@@ -52,6 +40,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   const [editCommentBody, setEditCommentBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -195,6 +184,13 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
     router.push("/forum");
   }
 
+  async function handleTogglePin() {
+    if (!post) return;
+    const supabase = createClient();
+    await supabase.from("forum_posts").update({ is_pinned: !post.is_pinned }).eq("id", postId);
+    loadPost();
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Navbar />
@@ -213,19 +209,45 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
           {/* Header */}
           <div className="p-5 border-b border-zinc-100 dark:border-zinc-800">
             <div className="flex items-center gap-2 mb-2">
-              <div className={`w-8 h-8 rounded-lg ${config.color} flex items-center justify-center`}>
+              <div className={`w-8 h-8 rounded-lg ${config.color} flex items-center justify-center shrink-0`}>
                 <Icon size={16} className="text-white" />
               </div>
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{config.label}</span>
-              {isPostOwner && (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="ml-auto p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition"
-                  title="Excluir post"
-                >
-                  <Trash2 size={14} className="text-zinc-400 hover:text-red-500" />
-                </button>
+
+              {/* Pin badge */}
+              {post.is_pinned && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                  <Pin size={10} /> Fixado
+                </span>
               )}
+
+              {/* Owner actions */}
+              {isPostOwner && (
+                <div className="ml-auto flex gap-1">
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition cursor-pointer"
+                    title="Editar post"
+                  >
+                    <Edit2 size={14} className="text-zinc-400 hover:text-zinc-600" />
+                  </button>
+                  <button
+                    onClick={handleTogglePin}
+                    className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition cursor-pointer"
+                    title={post.is_pinned ? "Desafixar" : "Fixar"}
+                  >
+                    <Pin size={14} className={post.is_pinned ? "text-amber-500" : "text-zinc-400"} />
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition cursor-pointer"
+                    title="Excluir post"
+                  >
+                    <Trash2 size={14} className="text-zinc-400 hover:text-red-500" />
+                  </button>
+                </div>
+              )}
+
               {subject && (
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white ${subject.color}`}>
                   {subject.emoji} {subject.name}
@@ -239,10 +261,10 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
             </div>
           </div>
 
-          {/* Body */}
+          {/* Body (markdown rendered) */}
           {post.body && (
-            <div className="p-5 text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap text-sm leading-relaxed">
-              {post.body}
+            <div className="p-5">
+              <MarkdownPreview content={post.body} />
             </div>
           )}
 
@@ -364,6 +386,14 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
           </form>
         </div>
       </main>
+
+      {showEditModal && post && (
+        <EditPostModal
+          post={post}
+          onClose={() => setShowEditModal(false)}
+          onEdited={() => { setShowEditModal(false); loadPost(); }}
+        />
+      )}
     </div>
   );
 }

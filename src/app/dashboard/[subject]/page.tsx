@@ -235,7 +235,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
 
         <div className="grid gap-6 md:grid-cols-[1fr_340px]">
           <div>
-            <button onClick={() => setShowModal(true)} className="w-full mb-6 py-3.5 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition flex items-center justify-center gap-2">
+            <button onClick={() => setShowModal(true)} className="w-full mb-6 py-3.5 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition cursor-pointer flex items-center justify-center gap-2">
               + Adicionar item
             </button>
 

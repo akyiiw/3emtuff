@@ -7,7 +7,7 @@ import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
 import { Plus, MessageSquare, Search } from "lucide-react";
 import {
-  FilterChip, ForumPostCard, CreatePostModal, POST_TYPE_CONFIG, profileCache,
+  FilterChip, ForumPostCard, CreatePostModal, EditPostModal, POST_TYPE_CONFIG, profileCache,
 } from "@/components/forum";
 import type { ForumPost } from "@/components/forum";
 
@@ -21,6 +21,13 @@ export default function ForumPage() {
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPost, setEditingPost] = useState<ForumPost | null>(null);
+
+  function handleOpenEdit(post: ForumPost) {
+    setEditingPost(post);
+    setShowEditModal(true);
+  }
 
   useEffect(() => {
     checkAuth();
@@ -119,6 +126,14 @@ export default function ForumPage() {
     loadPosts();
   }
 
+  async function handleTogglePin(postId: string) {
+    const post = posts.find((p) => p.id === postId);
+    if (!post) return;
+    const supabase = createClient();
+    await supabase.from("forum_posts").update({ is_pinned: !post.is_pinned }).eq("id", postId);
+    loadPosts();
+  }
+
   const filteredPosts = posts
     .filter((p) => {
       if (filter === "all") return true;
@@ -133,6 +148,10 @@ export default function ForumPage() {
     .filter((p) =>
       search.trim() === "" || p.title.toLowerCase().includes(search.toLowerCase()) || (p.body ?? "").toLowerCase().includes(search.toLowerCase())
     );
+
+  // Separates pinned and regular posts — always render pinned first
+  const pinnedPosts = filteredPosts.filter((p) => p.is_pinned);
+  const regularPosts = filteredPosts.filter((p) => !p.is_pinned);
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Navbar />
@@ -203,13 +222,40 @@ export default function ForumPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredPosts.map((post) => (
+            {/* Pinned posts */}
+            {pinnedPosts.length > 0 && (
+              <>
+                <div className="space-y-3">
+                  {pinnedPosts.map((post) => (
+                    <ForumPostCard
+                      key={post.id}
+                      post={post}
+                      isOwner={post.user_id === currentUser}
+                      onDelete={() => handleDeletePost(post.id)}
+                      onOpen={() => router.push(`/forum/${post.id}`)}
+                      onTogglePin={() => handleTogglePin(post.id)}
+                      onEdit={() => handleOpenEdit(post)}
+                    />
+                  ))}
+                </div>
+                <div className="flex items-center gap-3 py-2">
+                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                  <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Recentes</span>
+                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                </div>
+              </>
+            )}
+
+            {/* Regular posts */}
+            {regularPosts.map((post) => (
               <ForumPostCard
                 key={post.id}
                 post={post}
                 isOwner={post.user_id === currentUser}
                 onDelete={() => handleDeletePost(post.id)}
                 onOpen={() => router.push(`/forum/${post.id}`)}
+                onTogglePin={() => handleTogglePin(post.id)}
+                onEdit={() => handleOpenEdit(post)}
               />
             ))}
           </div>
@@ -220,6 +266,14 @@ export default function ForumPage() {
         <CreatePostModal
           onClose={() => setShowCreateModal(false)}
           onCreated={() => { loadPosts(); setShowCreateModal(false); }}
+        />
+      )}
+
+      {showEditModal && editingPost && (
+        <EditPostModal
+          post={editingPost}
+          onClose={() => { setShowEditModal(false); setEditingPost(null); }}
+          onEdited={() => { loadPosts(); setShowEditModal(false); setEditingPost(null); }}
         />
       )}
     </div>
