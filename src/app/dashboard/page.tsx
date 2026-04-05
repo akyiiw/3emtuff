@@ -69,15 +69,7 @@ export default function DashboardPage() {
     try {
       const supabase = createClient();
       const { data } = await supabase.from("items").select("*").order("due_date", { ascending: true });
-      let items = (data as ItemData[]) ?? [];
-
-      // Auto-delete provas que já passaram
-      const todayStr = new Date().toISOString().split("T")[0];
-      const expiredIds = items.filter((i) => i.item_type === "exam" && i.due_date && i.due_date < todayStr).map((i) => i.id);
-      if (expiredIds.length > 0) {
-        await supabase.from("items").delete().in("id", expiredIds);
-        items = items.filter((i) => !expiredIds.includes(i.id));
-      }
+      const items = (data as ItemData[]) ?? [];
 
       setAllItems(items);
 
@@ -158,8 +150,8 @@ export default function DashboardPage() {
     return i.due_date === todayStr;
   });
 
-  // Selected day filter
-  const selectedDayItems = selectedDay ? allItems.filter((i) => i.due_date === selectedDay) : [];
+  // Selected day filter — SÓ atividades
+  const selectedDayItems = selectedDay ? activities.filter((i) => i.due_date === selectedDay) : [];
   const selectedDayLabel = selectedDay
     ? new Date(selectedDay + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
     : null;
@@ -258,9 +250,11 @@ export default function DashboardPage() {
                 ) : (
                   <>
                     {(() => {
-                      const todayExams = exams.filter((i) => i.due_date === todayStr);
-                      const futureExams = exams.filter((i) => i.due_date && i.due_date > todayStr);
+                      const upcomingExams = exams.filter((i) => i.due_date >= todayStr);
                       const noDateExams = exams.filter((i) => !i.due_date);
+                      const todayExams = upcomingExams.filter((i) => i.due_date === todayStr);
+                      const futureExams = upcomingExams.filter((i) => i.due_date > todayStr);
+                      const expiredExams = exams.filter((i) => i.due_date && i.due_date < todayStr);
                       return (
                         <>
                           {todayExams.length > 0 && (
@@ -276,6 +270,11 @@ export default function DashboardPage() {
                           {noDateExams.length > 0 && (
                             <CollapsibleSection title="Sem data" count={noDateExams.length} accent="text-red-600" defaultOpen>
                               {noDateExams.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                            </CollapsibleSection>
+                          )}
+                          {expiredExams.length > 0 && (
+                            <CollapsibleSection title="Encerradas" count={expiredExams.length} defaultOpen={false}>
+                              {expiredExams.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
                             </CollapsibleSection>
                           )}
                         </>
