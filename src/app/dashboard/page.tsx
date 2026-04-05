@@ -240,7 +240,7 @@ export default function DashboardPage() {
         {/* Stats — SÓ atividades */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <Stat icon={Clock} label="Pendentes" value={pendingCount} active={activeFilter === "pending"} onClick={() => { setActiveFilter(activeFilter === "pending" ? "all" : "pending"); setSelectedDay(null); setShowExamPanel(false); }} />
-          <Stat icon={CheckCircle2} label="Conclu&iacute;das" value={doneCount} accent="text-green-600" active={activeFilter === "concluded"} onClick={() => { setActiveFilter(activeFilter === "concluded" ? "all" : "concluded"); setSelectedDay(null); setShowExamPanel(false); }} />
+          <Stat icon={CheckCircle2} label="Concluídas" value={doneCount} accent="text-green-600" active={activeFilter === "concluded"} onClick={() => { setActiveFilter(activeFilter === "concluded" ? "all" : "concluded"); setSelectedDay(null); setShowExamPanel(false); }} />
           <Stat icon={AlertTriangle} label="Atrasadas" value={overdueItems.length} accent="text-red-600" active={activeFilter === "overdue"} onClick={() => { setActiveFilter(activeFilter === "overdue" ? "all" : "overdue"); setSelectedDay(null); setShowExamPanel(false); }} />
           <Stat icon={GraduationCap} label="Provas" value={exams.length} accent="text-red-600" active={activeFilter === "exams"} onClick={() => { setActiveFilter("all"); setSelectedDay(null); setShowExamPanel((prev) => !prev); }} />
         </div>
@@ -257,7 +257,7 @@ export default function DashboardPage() {
                     {exams.length > 0 && <span className="text-xs text-zinc-400">({exams.length})</span>}
                   </h3>
                   <button onClick={() => setShowExamPanel(false)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition cursor-pointer">
-                    &larr; Voltar aos itens
+                    ← Voltar aos itens
                   </button>
                 </div>
                 {exams.length === 0 ? (
@@ -343,7 +343,7 @@ export default function DashboardPage() {
                   const upcoming = allItems.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(0, 4);
                   if (upcoming.length === 0) return null;
                   return (
-                    <CollapsibleSection title="Pr&oacute;ximas" count={upcoming.length} defaultOpen>
+                    <CollapsibleSection title="Próximas" count={upcoming.length} defaultOpen>
                       {upcoming.map((item) => (
                         <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                       ))}
@@ -366,7 +366,7 @@ export default function DashboardPage() {
                   const done = activities.filter((i) => isMineDone(i));
                   if (done.length === 0) return null;
                   return (
-                    <CollapsibleSection title="Conclu&iacute;das" count={done.length} defaultOpen={false}>
+                    <CollapsibleSection title="Concluídas" count={done.length} defaultOpen={false}>
                       {done.map((item) => (
                         <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
                       ))}
@@ -380,7 +380,7 @@ export default function DashboardPage() {
                 )}
               </>
             ) : (() => {
-              const title = activeFilter === "pending" ? "Pendentes" : activeFilter === "concluded" ? "Conclu&iacute;das" : activeFilter === "overdue" ? "Atrasadas" : "Minhas";
+              const title = activeFilter === "pending" ? "Pendentes" : activeFilter === "concluded" ? "Concluídas" : activeFilter === "overdue" ? "Atrasadas" : "Minhas";
               if (filteredItems.length === 0) {
                 return (
                   <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
@@ -407,13 +407,13 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <Calendar size={14} /> Pr&oacute;ximos 7 dias
+                <Calendar size={14} /> Próximos 7 dias
               </h3>
               <button
                 onClick={() => setShowMonthView(!showMonthView)}
                 className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
               >
-                {showMonthView ? "Ver semana" : "Ver m&ecirc;s"}
+                {showMonthView ? "Ver semana" : "Ver mês"}
               </button>
             </div>
 
@@ -495,7 +495,7 @@ export default function DashboardPage() {
                       {expanded && (
                         <div className="px-3 pb-3">
                           <div className="grid grid-cols-7 gap-0 mb-1">
-                            {["Seg", "Ter", "Qua", "Qui", "Sex", "S&aacute;b", "Dom"].map((d) => (
+                            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
                               <div key={d} className="text-center text-[10px] text-zinc-400 py-1">{d}</div>
                             ))}
                           </div>
@@ -540,7 +540,7 @@ export default function DashboardPage() {
             )}
 
             {/* Per-subject - SÓ atividades */}
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mt-2 mb-2">Resumo por mat&eacute;ria</h3>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mt-2 mb-2">Resumo por matéria</h3>
             <div className="grid grid-cols-4 gap-2">
               {SUBJECTS.map((s) => {
                 const count = activities.filter((i) => i.subject_id === s.id && !isMineDone(i)).length;
@@ -650,7 +650,9 @@ function ItemLine({ item, onToggleDone, doneNames, isMineDone, router }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
+            {!isExam && (
+              <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
+            )}
             <span className={`text-[15px] leading-snug ${mineDone ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate`}>
               {item.text}
             </span>
@@ -673,7 +675,7 @@ function ItemLine({ item, onToggleDone, doneNames, isMineDone, router }: {
             </span>
           )}
           {item.description && (
-            <span className="text-[11px] text-zinc-400 truncate">{item.description.substring(0, 50)}</span>
+            <span className="text-[11px] text-zinc-400 truncate">{item.description.length > 50 ? item.description.substring(0, 50) + "..." : item.description}</span>
           )}
         </div>
         <div className="flex items-center gap-2 mt-1 text-[11px]">
@@ -740,7 +742,7 @@ function DisplayNameModal({ open, onSave }: { open: boolean; onSave: (displayNam
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-sm mx-4 shadow-xl">
         <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Escolha seu apelido</h2>
-        <p className="text-sm text-zinc-500 mb-4">Como voc&ecirc; quer ser chamado(a) no app?</p>
+        <p className="text-sm text-zinc-500 mb-4">Como você quer ser chamado(a) no app?</p>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}

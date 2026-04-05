@@ -47,6 +47,7 @@ export default function ForumPage() {
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -115,7 +116,8 @@ export default function ForumPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUser(user.id);
-        const name = user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário";
+        const { data: prof } = await supabase.from("profiles").select("id, display_name").eq("id", user.id).single();
+        const name = prof?.display_name ?? user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário";
         setUserName(name);
         profileCache.set(user.id, name);
       } else {
@@ -131,8 +133,8 @@ export default function ForumPage() {
     if (missing.length === 0) return;
     try {
       const supabase = createClient();
-      const { data } = await supabase.from("profiles").select("id, name").in("id", [...new Set(missing)]);
-      for (const p of (data ?? [])) profileCache.set(p.id, p.name);
+      const { data } = await supabase.from("profiles").select("id, display_name").in("id", [...new Set(missing)]);
+      for (const p of (data ?? [])) profileCache.set(p.id, p.display_name ?? "Usuário");
     } catch { /* profiles may not exist yet */ }
   }
 
@@ -147,11 +149,19 @@ export default function ForumPage() {
   }
 
   const filteredPosts = posts
-    .filter((p) => filter === "all" || p.post_type === filter || (filter === p.subject_id && !!p.subject_id))
+    .filter((p) => {
+      if (filter === "all") return true;
+      if (p.post_type === filter) return true;
+      if (filter === p.subject_id && !!p.subject_id) return true;
+      return false;
+    })
+    .filter((p) => {
+      if (subjectFilter !== "all" && p.subject_id !== subjectFilter) return false;
+      return true;
+    })
     .filter((p) =>
       search.trim() === "" || p.title.toLowerCase().includes(search.toLowerCase()) || (p.body ?? "").toLowerCase().includes(search.toLowerCase())
     );
-
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <Navbar />
@@ -181,6 +191,20 @@ export default function ForumPage() {
               active={filter === key}
               onClick={() => setFilter(key)}
               color={filter === key ? config.color : undefined}
+            />
+          ))}
+        </div>
+
+        {/* Subject filters */}
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          <FilterChip label="Todas" active={subjectFilter === "all"} onClick={() => setSubjectFilter("all")} />
+          {SUBJECTS.map((s) => (
+            <FilterChip
+              key={s.id}
+              label={`${s.emoji} ${s.name}`}
+              active={subjectFilter === s.id}
+              onClick={() => setSubjectFilter(subjectFilter === s.id ? "all" : s.id)}
+              color={subjectFilter === s.id ? s.color : undefined}
             />
           ))}
         </div>

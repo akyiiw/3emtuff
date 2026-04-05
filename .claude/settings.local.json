@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xxd '/c/Users/itach/OneDrive/Área de Trabalho/3EM/3emtuff/src/app/dashboard/page.tsx')",
+      "Bash(npm run:*)",
+      "Bash(grep -rn \"&[a-z]\\\\+;\" src --include=*.tsx)"
+    ]
+  }
+}

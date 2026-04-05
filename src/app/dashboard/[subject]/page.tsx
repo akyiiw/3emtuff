@@ -71,8 +71,10 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUser(user.id);
-        setUserName(user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário");
-        profileCache.set(user.id, user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário");
+        const { data: prof } = await supabase.from("profiles").select("id, display_name").eq("id", user.id).single();
+        const name = prof?.display_name ?? user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário";
+        setUserName(name);
+        profileCache.set(user.id, name);
       } else {
         router.replace("/");
       }
@@ -86,8 +88,8 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
     if (missing.length === 0) return;
     try {
       const supabase = createClient();
-      const { data } = await supabase.from("profiles").select("id, name").in("id", [...new Set(missing)]);
-      for (const p of (data ?? [])) profileCache.set(p.id, p.name);
+      const { data } = await supabase.from("profiles").select("id, display_name").in("id", [...new Set(missing)]);
+      for (const p of (data ?? [])) profileCache.set(p.id, p.display_name ?? "Usuário");
     } catch { /* profiles table may not exist yet */ }
   }
 
@@ -298,7 +300,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                   </Section>
                 )}
                 {doneItems.length > 0 && (
-                  <Section title="Conclu&iacute;das" count={doneItems.length} defaultOpen={false}>
+                  <Section title="Concluídas" count={doneItems.length} defaultOpen={false}>
                     {doneItems.map((item) => (
                       <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
                         doneByMe={isDoneByUser(item.id, currentUser ?? "")} doneList={getDoneListForItem(item.id)}
@@ -390,7 +392,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                       if (doneList.length === 0 || selectedItem.item_type === "exam") return null;
                       return (
                         <div>
-                          <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Conclu&iacute;do por</p>
+                          <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Concluído por</p>
                           <div className="flex flex-wrap gap-1.5">
                             {doneList.map((d) => (
                               <span key={d.userId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">

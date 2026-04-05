@@ -68,7 +68,8 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUser(user.id);
-        const name = user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário";
+        const { data: prof } = await supabase.from("profiles").select("id, display_name").eq("id", user.id).single();
+        const name = prof?.display_name ?? user.user_metadata?.name ?? user.email?.split("@")[0] ?? "Usuário";
         setUserName(name);
         profileCache.set(user.id, name);
       } else {
@@ -84,8 +85,8 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
     if (missing.length === 0) return;
     try {
       const supabase = createClient();
-      const { data } = await supabase.from("profiles").select("id, name").in("id", [...new Set(missing)]);
-      for (const p of (data ?? [])) profileCache.set(p.id, p.name);
+      const { data } = await supabase.from("profiles").select("id, display_name").in("id", [...new Set(missing)]);
+      for (const p of (data ?? [])) profileCache.set(p.id, p.display_name ?? "Usuário");
     } catch { /* profiles may not exist yet */ }
   }
 
