@@ -195,14 +195,14 @@ export default function DashboardPage() {
                 {overdueItems.length > 0 && (
                   <CollapsibleSection title="Atrasadas" count={overdueItems.length} accent="text-red-600" defaultOpen>
                     {overdueItems.map((item) => (
-                      <ItemLine key={item.id} item={item} onDone={loadItems} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                     ))}
                   </CollapsibleSection>
                 )}
                 {todayItems.length > 0 && (
                   <CollapsibleSection title="Para hoje" count={todayItems.length} defaultOpen>
                     {todayItems.map((item) => (
-                      <ItemLine key={item.id} item={item} onDone={loadItems} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                      <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                     ))}
                   </CollapsibleSection>
                 )}
@@ -215,7 +215,7 @@ export default function DashboardPage() {
                   return (
                     <CollapsibleSection title="Pró ximas" count={upcoming.length} defaultOpen>
                       {upcoming.map((item) => (
-                        <ItemLine key={item.id} item={item} onDone={loadItems} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
@@ -226,7 +226,7 @@ export default function DashboardPage() {
                   return (
                     <CollapsibleSection title="Sem data" count={noDateItems.length} defaultOpen>
                       {noDateItems.map((item) => (
-                        <ItemLine key={item.id} item={item} onDone={loadItems} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
@@ -237,7 +237,7 @@ export default function DashboardPage() {
                   return (
                     <CollapsibleSection title="Conclu&iacute;das" count={done.length} defaultOpen={false}>
                       {done.map((item) => (
-                        <ItemLine key={item.id} item={item} onDone={loadItems} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                        <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                       ))}
                     </CollapsibleSection>
                   );
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                     {title} ({filteredItems.length})
                   </h3>
                   {filteredItems.map((item) => (
-                    <ItemLine key={item.id} item={item} onDone={loadItems} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
+                    <ItemLine key={item.id} item={item} isMineDone={isMineDone(item)} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} router={router} />
                   ))}
                 </div>
               );
