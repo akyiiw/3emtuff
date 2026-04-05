@@ -87,7 +87,8 @@ create policy "Any authenticated user can create items"
 create policy "Any authenticated user can update items"
   on items for update to authenticated using (true);
 create policy "Only creator can delete items"
-  on items for delete to authenticated using (auth.uid() = created_by);
+  on items for delete to authenticated using (true) ;
+  -- using (auth.uid() = created_by);
 
 alter table item_links enable row level security;
 

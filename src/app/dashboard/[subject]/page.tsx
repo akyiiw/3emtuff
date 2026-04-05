@@ -180,7 +180,8 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   async function handleDelete() {
     if (!selectedItem || !deleteCheck) return;
     const supabase = createClient();
-    await supabase.from("items").delete().eq("id", selectedItem.id);
+    const { error } = await supabase.from("items").delete().eq("id", selectedItem.id);
+    if (error) { alert("Erro ao apagar: " + error.message); return; }
     setSelectedItem(null);
     setItemLinks([]);
     setShowDeleteConfirm(false);

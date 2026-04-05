@@ -7,7 +7,7 @@ import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
 import {
   ArrowLeft, Send, Trash2, MessageSquare, Tag, Clock,
-  FileText, BookOpen, ArrowUpRight, Edit3, Reply,
+  FileText, BookOpen, ArrowUpRight, Edit3, Reply, AlertTriangle,
 } from "lucide-react";
 
 const profileCache = new Map<string, string>();
@@ -51,6 +51,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -185,6 +186,13 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   const Icon = config.icon;
   const subject = post.subject_id ? getSubject(post.subject_id) : null;
   const creatorName = profileCache.get(post.user_id) ?? "Usuário";
+  const isPostOwner = post.user_id === currentUser;
+
+  async function handleDeletePost() {
+    const supabase = createClient();
+    await supabase.from("forum_posts").delete().eq("id", postId);
+    router.push("/forum");
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -208,6 +216,15 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
                 <Icon size={16} className="text-white" />
               </div>
               <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{config.label}</span>
+              {isPostOwner && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="ml-auto p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition"
+                  title="Excluir post"
+                >
+                  <Trash2 size={14} className="text-zinc-400 hover:text-red-500" />
+                </button>
+              )}
               {subject && (
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white ${subject.color}`}>
                   {subject.emoji} {subject.name}
@@ -228,22 +245,34 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
             </div>
           )}
 
-          {/* Referenced Activity */}
-          {post.item_ref && post.item_id && (() => {
-            const itemSubject = getSubject(post.item_ref.subject_id);
-            return (
-              <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
-                <a
-                  href={`/dashboard/${post.item_ref.subject_id}?item=${post.item_id}`}
-                  className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
-                >
-                  {itemSubject && <span>{itemSubject.emoji}</span>}
-                  <span className="font-medium">{post.item_ref.text}</span>
-                  <ArrowUpRight size={14} className="text-zinc-400 shrink-0" />
-                </a>
+          {/* Delete Confirmation */}
+          {showDeleteConfirm && (
+            <div className="mx-5 mb-5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-3 space-y-2">
+              <p className="text-xs font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
+                <AlertTriangle size={12} /> Confirmar exclusão
+              </p>
+              <div className="flex gap-2">
+                <button onClick={handleDeletePost}
+                  className="flex-1 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition">Apagar post</button>
+                <button onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">Cancelar</button>
               </div>
-            );
-          })()}
+            </div>
+          )}
+
+          {/* Referenced Activity */}
+          {post.item_ref && post.item_id && (
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
+              <a
+                href={`/dashboard/${post.item_ref.subject_id}?item=${post.item_id}`}
+                className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+              >
+                {getSubject(post.item_ref.subject_id) && <span>{getSubject(post.item_ref.subject_id)!.emoji}</span>}
+                <span className="font-medium">{post.item_ref.text}</span>
+                <ArrowUpRight size={14} className="text-zinc-400 shrink-0" />
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Comments */}
