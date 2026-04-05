@@ -67,8 +67,10 @@ export default function ForumPage() {
 
       if (!data) { setPosts([]); setLoading(false); return; }
 
+      const typedData = data as ForumPost[];
+
       // Get comment counts
-      const postIds = data.map((p) => p.id);
+      const postIds = typedData.map((p) => p.id);
       const { data: counts } = await supabase
         .from("forum_comments")
         .select("post_id")
@@ -81,12 +83,12 @@ export default function ForumPage() {
 
       // Collect user IDs for profiles
       const allUserIds = [
-        ...data.map((p) => p.user_id),
+        ...typedData.map((p) => p.user_id),
       ];
       await loadProfiles(allUserIds);
 
       // Resolve item references
-      const itemIds = data.filter((p) => p.item_id).map((p) => p.item_id);
+      const itemIds = typedData.filter((p) => p.item_id).map((p) => p.item_id!);
       let itemMap: Record<string, { text: string; subject_id: string }> = {};
       if (itemIds.length > 0) {
         const { data: itemsData } = await supabase.from("items").select("id, text, subject_id").in("id", itemIds);
@@ -96,7 +98,7 @@ export default function ForumPage() {
         }
       }
 
-      const postsWithCounts = data.map((p) => ({
+      const postsWithCounts = typedData.map((p) => ({
         ...p,
         comment_count: countMap[p.id] || 0,
         item_ref: p.item_id ? itemMap[p.item_id] : undefined,
