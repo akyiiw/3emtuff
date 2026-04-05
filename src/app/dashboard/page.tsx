@@ -252,8 +252,8 @@ export default function DashboardPage() {
                     {(() => {
                       const upcomingExams = exams.filter((i) => i.due_date && i.due_date >= todayStr);
                       const noDateExams = exams.filter((i) => !i.due_date);
-                      const todayExams = upcomingExams.filter((i) => i.due_date === todayStr);
-                      const futureExams = upcomingExams.filter((i) => i.due_date > todayStr);
+                      const todayExams = upcomingExams.filter((i) => i.due_date! === todayStr);
+                      const futureExams = upcomingExams.filter((i) => i.due_date! > todayStr);
                       const expiredExams = exams.filter((i) => i.due_date && i.due_date < todayStr);
                       return (
                         <>
