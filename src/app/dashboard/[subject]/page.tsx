@@ -9,7 +9,7 @@ import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
 import {
   Calendar, ExternalLink, LinkIcon, User,
   CheckCircle2, Undo2, Trash2, AlertTriangle, Edit2, Check,
-  GraduationCap, FolderOpen, FileText,
+  GraduationCap, FolderOpen, FileText, MessageSquare,
 } from "lucide-react";
 
 declare global {
@@ -57,6 +57,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [itemLinks, setItemLinks] = useState<LinkEntry[]>([]);
   const [editMode, setEditMode] = useState(false);
+  const [forumMentions, setForumMentions] = useState<{ id: string; title: string; post_type: string }[]>([]);
 
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -153,6 +154,14 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
       setDeleteCheck(false);
       setShowDeleteConfirm(false);
       setEditMode(false);
+      // Load forum mentions
+      const { data: mentions } = await supabase
+        .from("forum_posts")
+        .select("id, title, post_type")
+        .eq("item_id", id);
+      setForumMentions((mentions ?? []) as { id: string; title: string; post_type: string }[]);
+    } else {
+      setForumMentions([]);
     }
   }
 
@@ -197,10 +206,11 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
 
-  const overdue = items.filter((i) => i.due_date && i.due_date < todayStr && !isDoneByUser(i.id, currentUser ?? ""));
-  const upcoming = items.filter((i) => i.due_date && i.due_date >= todayStr && !isDoneByUser(i.id, currentUser ?? ""));
-  const noDate = items.filter((i) => !i.due_date && !isDoneByUser(i.id, currentUser ?? ""));
+  const overdue = items.filter((i) => i.due_date && i.due_date < todayStr && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam");
+  const upcoming = items.filter((i) => i.due_date && i.due_date >= todayStr && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam");
+  const noDate = items.filter((i) => !i.due_date && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam");
   const doneItems = items.filter((i) => isDoneByUser(i.id, currentUser ?? ""));
+  const exams = items.filter((i) => i.item_type === "exam");
 
   // Subject accent color
   const colorClass = subject?.color ?? "bg-zinc-500";
@@ -238,8 +248,18 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
               </div>
             ) : (
               <div className="space-y-4">
+                {exams.length > 0 && (
+                  <Section title="Provas" count={exams.length} accent="text-red-600" defaultOpen>
+                    {exams.map((item) => (
+                      <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
+                        doneByMe={false} doneList={[]}
+                        onClick={() => router.push(`/dashboard/${subjectId}?item=${item.id}`)}
+                        isExam />
+                    ))}
+                  </Section>
+                )}
                 {overdue.length > 0 && (
-                  <Section title="Atrasadas" count={overdue.length} accent="text-red-600">
+                  <Section title="Atrasadas" count={overdue.length} accent="text-red-600" defaultOpen>
                     {overdue.map((item) => (
                       <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
                         doneByMe={isDoneByUser(item.id, currentUser ?? "")} doneList={getDoneListForItem(item.id)}
@@ -249,7 +269,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                   </Section>
                 )}
                 {upcoming.length > 0 && (
-                  <Section title="Próximas" count={upcoming.length}>
+                  <Section title="Próximas" count={upcoming.length} defaultOpen>
                     {upcoming.map((item) => (
                       <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
                         doneByMe={isDoneByUser(item.id, currentUser ?? "")} doneList={getDoneListForItem(item.id)}
@@ -259,7 +279,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                   </Section>
                 )}
                 {noDate.length > 0 && (
-                  <Section title="Sem data" count={noDate.length}>
+                  <Section title="Sem data" count={noDate.length} defaultOpen>
                     {noDate.map((item) => (
                       <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
                         doneByMe={isDoneByUser(item.id, currentUser ?? "")} doneList={getDoneListForItem(item.id)}
@@ -269,7 +289,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                   </Section>
                 )}
                 {doneItems.length > 0 && (
-                  <Section title="Concluídas" count={doneItems.length} defaultOpen={false}>
+                  <Section title="Conclu&iacute;das" count={doneItems.length} defaultOpen={false}>
                     {doneItems.map((item) => (
                       <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
                         doneByMe={isDoneByUser(item.id, currentUser ?? "")} doneList={getDoneListForItem(item.id)}
@@ -294,14 +314,18 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
 
                 <div className="p-4 space-y-4">
                   <div className="flex gap-2">
-                    {isDoneByUser(selectedItem.id, currentUser ?? "") ? (
-                      <button onClick={() => toggleDone(selectedItem.id)} className="flex-1 py-2 text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition flex items-center justify-center gap-1">
-                        <Undo2 size={12} /> Reabrir
-                      </button>
-                    ) : (
-                      <button onClick={() => toggleDone(selectedItem.id)} className="flex-1 py-2 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-1">
-                        <CheckCircle2 size={12} /> Concluir
-                      </button>
+                    {selectedItem.item_type !== "exam" && (
+                      <>
+                        {isDoneByUser(selectedItem.id, currentUser ?? "") ? (
+                          <button onClick={() => toggleDone(selectedItem.id)} className="flex-1 py-2 text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition flex items-center justify-center gap-1">
+                            <Undo2 size={12} /> Reabrir
+                          </button>
+                        ) : (
+                          <button onClick={() => toggleDone(selectedItem.id)} className="flex-1 py-2 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-1">
+                            <CheckCircle2 size={12} /> Concluir
+                          </button>
+                        )}
+                      </>
                     )}
                     <button onClick={() => setEditMode(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition" title="Editar">
                       <Edit2 size={14} className="text-zinc-400" />
@@ -354,10 +378,10 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
 
                     {(() => {
                       const doneList = getDoneListForItem(selectedItem.id);
-                      if (doneList.length === 0) return null;
+                      if (doneList.length === 0 || selectedItem.item_type === "exam") return null;
                       return (
                         <div>
-                          <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Concluído por</p>
+                          <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-1.5">Conclu&iacute;do por</p>
                           <div className="flex flex-wrap gap-1.5">
                             {doneList.map((d) => (
                               <span key={d.userId} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400">
@@ -380,6 +404,24 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                               className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600 transition group truncate">
                               <ExternalLink size={12} className="text-zinc-400 shrink-0" />
                               <span className="text-sm text-zinc-700 dark:text-zinc-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{link.label ?? link.url}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {forumMentions.length > 0 && (
+                      <div>
+                        <p className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                          <MessageSquare size={12} /> Menções no fórum
+                        </p>
+                        <div className="space-y-1">
+                          {forumMentions.map((mention) => (
+                            <a key={mention.id} href={`/forum/${mention.id}`}
+                              className="flex items-center gap-2 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600 transition group truncate">
+                              <MessageSquare size={12} className="text-zinc-400 shrink-0" />
+                              <span className="text-sm text-zinc-700 dark:text-zinc-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{mention.title}</span>
+                              <span className="shrink-0 text-[10px] text-zinc-400">→</span>
                             </a>
                           ))}
                         </div>
@@ -437,9 +479,10 @@ function Section({ title, count, children, accent, defaultOpen }: {
   );
 }
 
-function ItemCard({ item, active, onClick, onToggle, doneByMe, doneList }: {
-  item: Item; active: boolean; onClick: () => void; onToggle: () => void;
+function ItemCard({ item, active, onClick, onToggle, doneByMe, doneList, isExam }: {
+  item: Item; active: boolean; onClick: () => void; onToggle?: () => void;
   doneByMe: boolean; doneList: { userId: string; name: string }[];
+  isExam?: boolean;
 }) {
   const subj = getSubject(item.subject_id);
   const dueFormatted = item.due_date
@@ -458,19 +501,24 @@ function ItemCard({ item, active, onClick, onToggle, doneByMe, doneList }: {
           : `bg-white dark:bg-zinc-900 ${stripeColor} border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50`
       }`}
     >
-      <input type="checkbox" checked={doneByMe} onClick={(e) => e.stopPropagation()} onChange={onToggle}
-        className="w-5 h-5 mt-0.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 shrink-0" />
+      {isExam ? (
+        <div className="w-5 flex justify-center shrink-0 mt-0.5">
+          <GraduationCap size={16} className="text-red-500" />
+        </div>
+      ) : (
+        <input type="checkbox" checked={doneByMe} onClick={(e) => e.stopPropagation()} onChange={onToggle}
+          className="w-5 h-5 mt-0.5 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 shrink-0" />
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <TypeIcon size={14} className={`${typeConfig.color.replace("bg-", "text-")} shrink-0`} />
           <p className={`text-[15px] leading-snug ${doneByMe ? "line-through text-zinc-400" : "text-zinc-700 dark:text-zinc-300"} truncate flex-1`}>
             {item.text}
           </p>
-          {item.item_type === "exam" && (
-            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-500">PROVA</span>
-          )}
-          {item.item_type === "work" && (
-            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white bg-purple-500">TRABALHO</span>
+          {item.item_type !== "activity" && (
+            <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white ${typeConfig.color}`}>
+              {typeConfig.label.toUpperCase()}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-3 mt-1.5">
