@@ -547,14 +547,18 @@ export function CreatePostModal({ onClose, onCreated, defaultItemId }: CreatePos
       <ActivityPicker value={itemId} onChange={setItemId} />
 
       <div className="space-y-4">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-zinc-500 outline-none transition"
-          placeholder="Título do post"
-          required
-        />
+        <div>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+            className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-zinc-500 outline-none transition"
+            placeholder="Título do post"
+            required
+            maxLength={80}
+          />
+          <p className="text-[10px] text-zinc-400 mt-1 text-right">{title.length}/80</p>
+        </div>
         <MarkdownField value={body} onChange={setBody} placeholder="Escreva seu post em markdown..." />
         {/* Live preview */}
         {body.trim() && (
@@ -620,14 +624,18 @@ export function EditPostModal({ post, onClose, onEdited, userId }: EditPostModal
       <ActivityPicker value={itemId} onChange={setItemId} />
 
       <div className="space-y-4">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-zinc-500 outline-none transition"
-          placeholder="Título do post"
-          required
-        />
+        <div>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value.slice(0, 80))}
+            className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-zinc-500 outline-none transition"
+            placeholder="Título do post"
+            required
+            maxLength={80}
+          />
+          <p className="text-[10px] text-zinc-400 mt-1 text-right">{title.length}/80</p>
+        </div>
         <MarkdownField value={body} onChange={setBody} placeholder="Conteúdo em markdown..." />
         {body.trim() && (
           <details className="border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden">

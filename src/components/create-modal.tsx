@@ -228,11 +228,13 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
             <input
               type="text"
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => setText(e.target.value.slice(0, 100))}
               className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
               placeholder={itemType === "exam" ? "Ex: P2 de Cálculo..." : itemType === "work" ? "Ex: Trabalho de história sobre..." : "Ex: Lista 3 de exercícios..."}
               required
+              maxLength={100}
             />
+            <p className="text-[10px] text-zinc-400 mt-1 text-right">{text.length}/100</p>
           </div>
 
           {/* Description */}
@@ -258,6 +260,8 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              max="2027-12-31"
               className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
             />
           </div>

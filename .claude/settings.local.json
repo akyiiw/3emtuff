@@ -18,7 +18,8 @@
       "Bash(npx next:*)",
       "Bash(taskkill //F //IM node.exe)",
       "Bash(npx tsc:*)",
-      "Bash(cmd /c \"echo. > \\\\\"C:\\\\\\\\Users\\\\\\\\itach\\\\\\\\OneDrive\\\\\\\\Área de Trabalho\\\\\\\\3EM\\\\\\\\3emtuff\\\\\\\\src\\\\\\\\components\\\\\\\\notification-bell.tsx\\\\\"\")"
+      "Bash(cmd /c \"echo. > \\\\\"C:\\\\\\\\Users\\\\\\\\itach\\\\\\\\OneDrive\\\\\\\\Área de Trabalho\\\\\\\\3EM\\\\\\\\3emtuff\\\\\\\\src\\\\\\\\components\\\\\\\\notification-bell.tsx\\\\\"\")",
+      "Bash(exit 0)"
     ]
   }
 }
