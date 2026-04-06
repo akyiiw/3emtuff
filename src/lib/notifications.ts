@@ -17,16 +17,6 @@ export async function dispatchNotification(
   });
 }
 
-async function triggerNotifyEmails() {
-  try {
-    const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
-    if (!base) return;
-    await fetch(`${base}/api/notify/send`, {
-      method: "POST",
-    });
-  } catch { /* ignore */ }
-}
-
 export async function broadcastNotification(
   excludeUserId: string,
   type: string,
@@ -52,8 +42,6 @@ export async function broadcastNotification(
   }));
 
   await supabase.from("notifications").insert(notifications);
-  // Enviar email imediato
-  await triggerNotifyEmails();
 }
 
 export async function notifyPostComment(
@@ -76,8 +64,6 @@ export async function notifyPostComment(
     null,
     `/forum/${postId}`
   );
-  // Enviar email imediato
-  await triggerNotifyEmails();
 }
 
 export async function notifyNewForumPost(

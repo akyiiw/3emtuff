@@ -23,11 +23,14 @@ const lastSent = new Map<string, number>();
 
 export async function POST(req: NextRequest) {
   if (!RESEND_API_KEY) {
+    console.error("[notify-email] RESEND_API_KEY not configured");
     return NextResponse.json({ error: "RESEND_API_KEY not configured" }, { status: 500 });
   }
 
   const resend = new Resend(RESEND_API_KEY);
   const supabase = getAdminClient();
+
+  console.log("[notify-email] Starting notification email check");
 
   try {
     // Find users with unread notifications from the last 2 hours
