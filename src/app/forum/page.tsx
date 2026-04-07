@@ -124,7 +124,16 @@ export default function ForumPage() {
 
   async function handleDeletePost(postId: string) {
     const supabase = createClient();
-    await supabase.from("forum_posts").delete().eq("id", postId);
+    const ownerId = posts.find((p) => p.id === postId)?.user_id;
+    const isOwnPost = currentUser === ownerId;
+
+    if (isOwnPost) {
+      // Regular users can delete their own posts — direct Supabase call (RLS allows)
+      await supabase.from("forum_posts").delete().eq("id", postId);
+    } else {
+      // Moderators use API route that bypasses RLS via admin client
+      await fetch(`/api/moderate?table=forum_posts&id=${postId}&userId=${currentUser}`, { method: "DELETE" });
+    }
     loadPosts();
   }
 

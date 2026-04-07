@@ -146,8 +146,14 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   }
 
   async function handleDeleteComment(commentId: string) {
-    const supabase = createClient();
-    await supabase.from("forum_comments").delete().eq("id", commentId);
+    const comment = comments.find((c) => c.id === commentId);
+    const isOwnComment = currentUser === comment?.user_id;
+    if (isOwnComment) {
+      const supabase = createClient();
+      await supabase.from("forum_comments").delete().eq("id", commentId);
+    } else {
+      await fetch(`/api/moderate?table=forum_comments&id=${commentId}&userId=${currentUser}`, { method: "DELETE" });
+    }
     setComments((prev) => prev.filter((c) => c.id !== commentId));
   }
 
@@ -185,8 +191,13 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   const isPostOwner = post.user_id === currentUser || isModerator;
 
   async function handleDeletePost() {
-    const supabase = createClient();
-    await supabase.from("forum_posts").delete().eq("id", postId);
+    const isOwnPost = currentUser === post?.user_id;
+    if (isOwnPost) {
+      const supabase = createClient();
+      await supabase.from("forum_posts").delete().eq("id", postId);
+    } else {
+      await fetch(`/api/moderate?table=forum_posts&id=${postId}&userId=${currentUser}`, { method: "DELETE" });
+    }
     router.push("/forum");
   }
 
