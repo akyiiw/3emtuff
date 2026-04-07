@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
+import type { Database } from "@/lib/supabase/database.types";
 import { MODERATOR_USER_ID } from "@/lib/use-moderator";
 
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 const MOD = MODERATOR_USER_ID;
 
 export async function DELETE(req: NextRequest) {
@@ -29,7 +31,7 @@ export async function DELETE(req: NextRequest) {
       .from("profiles")
       .select("is_moderator")
       .eq("id", userId)
-      .single();
+      .single() as { data: ProfileRow | null; error: any };
     if (!profile?.is_moderator) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
