@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { SUBJECTS } from "@/lib/subjects";
-import { X, Plus, Calendar, LinkIcon, Trash2, FileText, GraduationCap, FolderOpen } from "lucide-react";
+import { X, Plus, Calendar, LinkIcon, Trash2, FileText, GraduationCap, FolderOpen, Presentation } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export const ITEM_TYPES = {
   activity: { label: "Atividade", icon: FileText, color: "bg-blue-500" },
   work: { label: "Trabalho", icon: FolderOpen, color: "bg-purple-500" },
   exam: { label: "Prova", icon: GraduationCap, color: "bg-red-500" },
+  presentation: { label: "Apresentação", icon: Presentation, color: "bg-violet-500" },
 } as const;
 
 interface LinkEntry {
@@ -38,7 +39,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
   const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [subjectId, setSubjectId] = useState("");
-  const [itemType, setItemType] = useState<"activity" | "work" | "exam">("activity");
+  const [itemType, setItemType] = useState<"activity" | "work" | "exam" | "presentation">("activity");
   const [links, setLinks] = useState<LinkEntry[]>([]);
 
   const isEditing = !!editItem;
@@ -223,14 +224,20 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              {itemType === "exam" ? "Nome da prova?" : itemType === "work" ? "Nome do trabalho?" : "O que precisa fazer?"}
+              {itemType === "exam" ? "Nome da prova?"
+              : itemType === "work" ? "Nome do trabalho?"
+              : itemType === "presentation" ? "Nome da apresentação?"
+              : "O que precisa fazer?"}
             </label>
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, 100))}
               className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-              placeholder={itemType === "exam" ? "Ex: P2 de Cálculo..." : itemType === "work" ? "Ex: Trabalho de história sobre..." : "Ex: Lista 3 de exercícios..."}
+              placeholder={itemType === "exam" ? "Ex: P2 de Cálculo..."
+              : itemType === "work" ? "Ex: Trabalho de história sobre..."
+              : itemType === "presentation" ? "Ex: Apresentação de biologia sobre..."
+              : "Ex: Lista 3 de exercícios..."}
               required
               maxLength={100}
             />
@@ -254,7 +261,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
           {/* Date */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
-              <Calendar size={14} /> {itemType === "exam" ? "Data da prova" : "Data de entrega"}
+              <Calendar size={14} /> {itemType === "exam" ? "Data da prova" : itemType === "presentation" ? "Data da apresentação" : "Data de entrega"}
             </label>
             <input
               type="date"

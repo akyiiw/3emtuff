@@ -44,6 +44,26 @@ export async function broadcastNotification(
   await supabase.from("notifications").insert(notifications);
 }
 
+export async function notifyTaskDone(
+  excludeUserId: string,
+  itemId: string,
+  itemText: string,
+  subjectId: string
+) {
+  const { getSubject } = await import("@/lib/subjects");
+  const subj = getSubject(subjectId);
+  const emoji = subj?.emoji ?? "📚";
+  const label = subj?.name ?? "Geral";
+
+  await broadcastNotification(
+    excludeUserId,
+    "item_done",
+    `${emoji} ${itemText} concluída!`,
+    `${label}`,
+    `/dashboard/${subjectId}?item=${itemId}`
+  );
+}
+
 export async function notifyPostComment(
   postId: string,
   commentUserId: string
@@ -91,7 +111,7 @@ export async function notifyNewItem(
   const subj = getSubject(subjectId);
   const emoji = subj?.emoji ?? "📚";
   const label = subj?.name ?? "Geral";
-  const typeLabel = itemType === "exam" ? "Prova" : itemType === "work" ? "Trabalho" : "Atividade";
+  const typeLabel = itemType === "exam" ? "Prova" : itemType === "work" ? "Trabalho" : itemType === "presentation" ? "Apresentação" : "Atividade";
   const notifType = itemType === "exam" ? "new_exam" : "new_item";
 
   await broadcastNotification(

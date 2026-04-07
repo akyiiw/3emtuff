@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Bell, Check, CheckCheck, MessageSquare, Calendar, FileText, BookOpen, GraduationCap, FolderOpen, Trash2, ArrowUpRight, X } from "lucide-react";
+import { Bell, Check, CheckCheck, MessageSquare, Calendar, FileText, BookOpen, GraduationCap, FolderOpen, Trash2, ArrowUpRight, X, CheckCircle2 } from "lucide-react";
 import { getSubject } from "@/lib/subjects";
 import Link from "next/link";
 
@@ -10,7 +10,7 @@ import Link from "next/link";
 export interface AppNotification {
   id: string;
   user_id: string;
-  type: "new_item" | "new_exam" | "new_forum_post" | "new_forum_comment" | "item_overdue";
+  type: "new_item" | "new_exam" | "new_forum_post" | "new_forum_comment" | "item_overdue" | "item_done";
   title: string;
   body: string | null;
   link: string | null;
@@ -28,6 +28,7 @@ const TYPE_CONFIG: Record<string, { icon: any; color: string }> = {
   new_forum_post: { icon: MessageSquare, color: "text-emerald-500" },
   new_forum_comment: { icon: ArrowUpRight, color: "text-purple-500" },
   item_overdue: { icon: Calendar, color: "text-amber-500" },
+  item_done: { icon: CheckCircle2, color: "text-green-500" },
 };
 
 function getTimeAgo(dateStr: string): string {

@@ -20,7 +20,9 @@
       "Bash(npx tsc:*)",
       "Bash(cmd /c \"echo. > \\\\\"C:\\\\\\\\Users\\\\\\\\itach\\\\\\\\OneDrive\\\\\\\\Área de Trabalho\\\\\\\\3EM\\\\\\\\3emtuff\\\\\\\\src\\\\\\\\components\\\\\\\\notification-bell.tsx\\\\\"\")",
       "Bash(exit 0)",
-      "Bash(sort -t: -k2,2)"
+      "Bash(sort -t: -k2,2)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(xxd)"
     ]
   }
 }

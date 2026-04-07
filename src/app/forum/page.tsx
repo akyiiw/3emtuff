@@ -10,11 +10,13 @@ import {
   FilterChip, ForumPostCard, CreatePostModal, EditPostModal, POST_TYPE_CONFIG, profileCache,
 } from "@/components/forum";
 import type { ForumPost } from "@/components/forum";
+import { useModerator } from "@/lib/use-moderator";
 
 export default function ForumPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("");
+  const isModerator = useModerator(currentUser);
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
@@ -230,7 +232,7 @@ export default function ForumPage() {
                     <ForumPostCard
                       key={post.id}
                       post={post}
-                      isOwner={post.user_id === currentUser}
+                      isOwner={post.user_id === currentUser || isModerator}
                       onDelete={() => handleDeletePost(post.id)}
                       onOpen={() => router.push(`/forum/${post.id}`)}
                       onTogglePin={() => handleTogglePin(post.id)}
@@ -251,7 +253,7 @@ export default function ForumPage() {
               <ForumPostCard
                 key={post.id}
                 post={post}
-                isOwner={post.user_id === currentUser}
+                isOwner={post.user_id === currentUser || isModerator}
                 onDelete={() => handleDeletePost(post.id)}
                 onOpen={() => router.push(`/forum/${post.id}`)}
                 onTogglePin={() => handleTogglePin(post.id)}

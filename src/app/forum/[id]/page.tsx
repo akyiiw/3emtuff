@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { Navbar } from "@/components/navbar";
+import { useModerator } from "@/lib/use-moderator";
+import { Shield } from "lucide-react";
 import {
   ArrowLeft, Send, Trash2, MessageSquare, Tag, Clock,
   FileText, BookOpen, ArrowUpRight, Edit2, Edit3, Reply, AlertTriangle, Pin,
@@ -31,6 +33,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   const router = useRouter();
 
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const isModerator = useModerator(currentUser);
   const [userName, setUserName] = useState<string>("");
   const [post, setPost] = useState<ForumPost | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -179,7 +182,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
   const Icon = config.icon;
   const subject = post.subject_id ? getSubject(post.subject_id) : null;
   const creatorName = profileCache.get(post.user_id) ?? "Usuário";
-  const isPostOwner = post.user_id === currentUser;
+  const isPostOwner = post.user_id === currentUser || isModerator;
 
   async function handleDeletePost() {
     const supabase = createClient();
@@ -321,7 +324,7 @@ export default function ForumPostPage({ params }: { params: Promise<{ id: string
               {comments.map((comment) => {
                 const isEditing = editingCommentId === comment.id;
                 const name = profileCache.get(comment.user_id) ?? "Usuário";
-                const isOwner = comment.user_id === currentUser;
+                const isOwner = comment.user_id === currentUser || isModerator;
 
                 return (
                   <div key={comment.id} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4">

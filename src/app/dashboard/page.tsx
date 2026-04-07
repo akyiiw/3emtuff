@@ -13,7 +13,7 @@ import {
 import type { ItemData } from "@/components/dashboard";
 import {
   Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown,
-  GraduationCap, FolderOpen, FileText, ChevronRight,
+  GraduationCap, FolderOpen, FileText, ChevronRight, Presentation, X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "mine" | "pending" | "concluded" | "overdue" | "exams">("all");
   const [showExamPanel, setShowExamPanel] = useState(false);
+  const [showPresentationPanel, setShowPresentationPanel] = useState(false);
   const [showDisplayNameModal, setShowDisplayNameModal] = useState(false);
   const [showReminderSettings, setShowReminderSettings] = useState(false);
 
@@ -124,6 +125,9 @@ export default function DashboardPage() {
       await supabase.from("task_done").delete().eq("item_id", itemId).eq("user_id", currentUser);
     } else {
       await supabase.from("task_done").insert({ item_id: itemId, user_id: currentUser });
+      // Notify others that this task was completed
+      const { notifyTaskDone } = await import("@/lib/notifications");
+      await notifyTaskDone(currentUser, item.id, item.text, item.subject_id);
     }
     loadItems();
   }
@@ -134,7 +138,7 @@ export default function DashboardPage() {
   const todayStr = today.toISOString().split("T")[0];
 
   function isMineDone(item: ItemData) {
-    if (item.item_type === "exam") return false;
+    if (item.item_type === "exam" || item.item_type === "presentation") return false;
     if (!currentUser) return false;
     return doneSet.get(item.id)?.has(currentUser) ?? false;
   }
@@ -145,9 +149,12 @@ export default function DashboardPage() {
     return [...set].map((id) => profileCache.get(id) ?? "Usuário");
   }
 
-  // Separate exams from activities/works
-  const exams = allItems.filter((i) => i.item_type === "exam" && i.due_date);
-  const activities = allItems.filter((i) => i.item_type !== "exam");
+  // Separate exams from activities/works/presentations
+  const exams = allItems.filter((i) => i.item_type === "exam");
+  const filteredExams = selectedDay ? exams.filter((i) => i.due_date === selectedDay) : exams;
+  const presentations = allItems.filter((i) => i.item_type === "presentation");
+  const filteredPresentations = selectedDay ? presentations.filter((i) => i.due_date === selectedDay) : presentations;
+  const activities = allItems.filter((i) => i.item_type !== "exam" && i.item_type !== "presentation");
 
   // Stats — SÓ atividades contam
   const pendingCount = activities.filter((i) => !isMineDone(i)).length;
@@ -223,7 +230,10 @@ export default function DashboardPage() {
   }
 
   function typeColor(itemType: string) {
-    return itemType === "exam" ? "bg-red-500" : itemType === "work" ? "bg-purple-500" : "bg-blue-500";
+    return itemType === "exam" ? "bg-red-500"
+      : itemType === "presentation" ? "bg-violet-500"
+      : itemType === "work" ? "bg-purple-500"
+      : "bg-blue-500";
   }
 
   return (
@@ -233,10 +243,10 @@ export default function DashboardPage() {
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* Stats — SÓ atividades */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <Stat icon={Clock} label="Pendentes" value={pendingCount} active={activeFilter === "pending"} onClick={() => { setActiveFilter(activeFilter === "pending" ? "all" : "pending"); setSelectedDay(null); setShowExamPanel(false); }} />
-          <Stat icon={CheckCircle2} label="Concluídas" value={doneCount} accent="text-green-600" active={activeFilter === "concluded"} onClick={() => { setActiveFilter(activeFilter === "concluded" ? "all" : "concluded"); setSelectedDay(null); setShowExamPanel(false); }} />
-          <Stat icon={AlertTriangle} label="Atrasadas" value={overdueItems.length} accent="text-red-600" active={activeFilter === "overdue"} onClick={() => { setActiveFilter(activeFilter === "overdue" ? "all" : "overdue"); setSelectedDay(null); setShowExamPanel(false); }} />
-          <Stat icon={GraduationCap} label="Provas" value={exams.length} accent="text-red-600" active={activeFilter === "exams"} onClick={() => { setActiveFilter("all"); setSelectedDay(null); setShowExamPanel((prev) => !prev); }} />
+          <Stat icon={Clock} label="Pendentes" value={pendingCount} active={activeFilter === "pending"} onClick={() => { setActiveFilter(activeFilter === "pending" ? "all" : "pending"); setSelectedDay(null); setShowExamPanel(false); setShowPresentationPanel(false); }} />
+          <Stat icon={CheckCircle2} label="Concluídas" value={doneCount} accent="text-green-600" active={activeFilter === "concluded"} onClick={() => { setActiveFilter(activeFilter === "concluded" ? "all" : "concluded"); setSelectedDay(null); setShowExamPanel(false); setShowPresentationPanel(false); }} />
+          <Stat icon={Presentation} label="Apresentações" value={presentations.length} accent="text-violet-600" active={showPresentationPanel} onClick={() => { setActiveFilter("all"); setSelectedDay(null); setShowExamPanel(false); setShowPresentationPanel((prev) => !prev); }} />
+          <Stat icon={GraduationCap} label="Provas" value={exams.length} accent="text-red-600" active={showExamPanel} onClick={() => { setActiveFilter("all"); setSelectedDay(null); setShowExamPanel((prev) => !prev); setShowPresentationPanel(false); }} />
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -248,23 +258,33 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-red-600 dark:text-red-400 flex items-center gap-2">
                     <GraduationCap size={14} /> Provas
-                    {exams.length > 0 && <span className="text-xs text-zinc-400">({exams.length})</span>}
+                    {filteredExams.length > 0 && <span className="text-xs text-zinc-400">({filteredExams.length})</span>}
                   </h3>
                   <button onClick={() => setShowExamPanel(false)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition cursor-pointer">
                     ← Voltar aos itens
                   </button>
                 </div>
-                {exams.length === 0 ? (
+                {filteredExams.length === 0 ? (
                   <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
-                    <p className="text-zinc-500">Nenhuma prova agendada</p>
+                    <p className="text-zinc-500">{selectedDay ? "Nenhuma prova neste dia" : "Nenhuma prova agendada"}</p>
                   </div>
                 ) : (
                   <>
+                    {selectedDay && (
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-zinc-400">
+                          Filtrado: {new Date(selectedDay + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}
+                        </span>
+                        <button onClick={() => setSelectedDay(null)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 flex items-center gap-1">
+                          Limpar <X size={12} />
+                        </button>
+                      </div>
+                    )}
                     {(() => {
-                      const todayExams = exams.filter((i) => i.due_date === todayStr);
-                      const futureExams = exams.filter((i) => i.due_date !== null && i.due_date > todayStr);
-                      const noDateExams = exams.filter((i) => !i.due_date);
-                      const expiredExams = exams.filter((i) => i.due_date !== null && i.due_date < todayStr);
+                      const todayExams = filteredExams.filter((i) => i.due_date === todayStr);
+                      const futureExams = filteredExams.filter((i) => i.due_date !== null && i.due_date > todayStr);
+                      const noDateExams = filteredExams.filter((i) => !i.due_date);
+                      const expiredExams = filteredExams.filter((i) => i.due_date !== null && i.due_date < todayStr);
                       return (
                         <>
                           {todayExams.length > 0 && (
@@ -293,6 +313,57 @@ export default function DashboardPage() {
                   </>
                 )}
               </>
+            ) : showPresentationPanel ? (
+            /* ===== PAINEL DE APRESENTAÇÕES ===== */
+            <>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-2">
+                  <Presentation size={14} /> Apresentações
+                  {filteredPresentations.length > 0 && <span className="text-xs text-zinc-400">({filteredPresentations.length})</span>}
+                </h3>
+                <button onClick={() => setShowPresentationPanel(false)} className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition cursor-pointer">
+                  ← Voltar aos itens
+                </button>
+              </div>
+              {presentations.length === 0 ? (
+                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+                  <p className="text-zinc-500">Nenhuma apresentação agendada</p>
+                </div>
+              ) : (
+                <>
+                  {(() => {
+                    const todayPresentations = filteredPresentations.filter((i) => i.due_date === todayStr);
+                    const futurePresentations = filteredPresentations.filter((i) => i.due_date !== null && i.due_date > todayStr);
+                    const noDatePresentations = filteredPresentations.filter((i) => !i.due_date);
+                    const expiredPresentations = filteredPresentations.filter((i) => i.due_date !== null && i.due_date < todayStr);
+                    return (
+                      <>
+                        {todayPresentations.length > 0 && (
+                          <CollapsibleSection title="Hoje" count={todayPresentations.length} accent="text-violet-600" defaultOpen>
+                            {todayPresentations.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                          </CollapsibleSection>
+                        )}
+                        {futurePresentations.length > 0 && (
+                          <CollapsibleSection title="Próximas" count={futurePresentations.length} accent="text-violet-600" defaultOpen>
+                            {futurePresentations.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                          </CollapsibleSection>
+                        )}
+                        {noDatePresentations.length > 0 && (
+                          <CollapsibleSection title="Sem data" count={noDatePresentations.length} accent="text-violet-600" defaultOpen>
+                            {noDatePresentations.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                          </CollapsibleSection>
+                        )}
+                        {expiredPresentations.length > 0 && (
+                          <CollapsibleSection title="Encerradas" count={expiredPresentations.length} defaultOpen={false}>
+                            {expiredPresentations.map((item) => <ExamLine key={item.id} item={item} todayStr={todayStr} router={router} />)}
+                          </CollapsibleSection>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </>
             ) : (
             /* ===== LISTA NORMAL (SÓ ATIVIDADES) ===== */
             <>
@@ -319,13 +390,6 @@ export default function DashboardPage() {
               </>
             ) : activeFilter === "all" ? (
               <>
-                {overdueItems.length > 0 && (
-                  <CollapsibleSection title="Atrasadas" count={overdueItems.length} accent="text-red-600" defaultOpen>
-                    {overdueItems.map((item) => (
-                      <ItemLine key={item.id} item={item} onToggleDone={() => toggleDone(item.id)} doneNames={getDoneNames(item)} isMineDone={isMineDone} router={router} />
-                    ))}
-                  </CollapsibleSection>
-                )}
                 {todayItems.length > 0 && (
                   <CollapsibleSection title="Para hoje" count={todayItems.length} defaultOpen>
                     {todayItems.map((item) => (
@@ -334,7 +398,9 @@ export default function DashboardPage() {
                   </CollapsibleSection>
                 )}
                 {(() => {
-                  const upcoming = allItems.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr).slice(0, 4);
+                  const maxDate = new Date(today); maxDate.setDate(maxDate.getDate() + 7);
+  const maxDateStr = maxDate.toISOString().split("T")[0];
+  const upcoming = allItems.filter((i) => i.due_date && !isMineDone(i) && i.due_date >= todayStr && i.due_date <= maxDateStr);
                   if (upcoming.length === 0) return null;
                   return (
                     <CollapsibleSection title="Próximas" count={upcoming.length} defaultOpen>

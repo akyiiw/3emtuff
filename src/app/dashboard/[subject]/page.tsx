@@ -9,6 +9,7 @@ import { CreateModal, ITEM_TYPES } from "@/components/create-modal";
 import { Section, Detail, ItemCard, profileCache } from "@/components/subject";
 import type { Item } from "@/components/subject";
 import { ReminderSettings } from "@/components/reminder-settings";
+import { useModerator } from "@/lib/use-moderator";
 import {
   Calendar, ExternalLink, LinkIcon, User, Edit3,
   CheckCircle2, Undo2, Trash2, AlertTriangle, Edit2, Check,
@@ -33,6 +34,7 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   const subject = getSubject(subjectId);
 
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const isModerator = useModerator(currentUser);
   const [userName, setUserName] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
@@ -206,11 +208,12 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
 
-  const overdue = items.filter((i) => i.due_date && i.due_date < todayStr && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam");
-  const upcoming = items.filter((i) => i.due_date && i.due_date >= todayStr && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam");
-  const noDate = items.filter((i) => !i.due_date && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam");
+  const overdue = items.filter((i) => i.due_date && i.due_date < todayStr && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam" && i.item_type !== "presentation");
+  const upcoming = items.filter((i) => i.due_date && i.due_date >= todayStr && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam" && i.item_type !== "presentation");
+  const noDate = items.filter((i) => !i.due_date && !isDoneByUser(i.id, currentUser ?? "") && i.item_type !== "exam" && i.item_type !== "presentation");
   const doneItems = items.filter((i) => isDoneByUser(i.id, currentUser ?? ""));
   const exams = items.filter((i) => i.item_type === "exam");
+  const presentations = items.filter((i) => i.item_type === "presentation");
 
   // Subject accent color
   const colorClass = `${subject?.color ?? "bg-zinc-500"} ${subject?.darkColor ?? ""}`;
@@ -252,6 +255,16 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                 {exams.length > 0 && (
                   <Section title="Provas" count={exams.length} accent="text-red-600" defaultOpen>
                     {exams.map((item) => (
+                      <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
+                        doneByMe={false} doneList={[]}
+                        onClick={() => router.push(`/dashboard/${subjectId}?item=${item.id}`)}
+                        isExam />
+                    ))}
+                  </Section>
+                )}
+                {presentations.length > 0 && (
+                  <Section title="Apresentações" count={presentations.length} accent="text-violet-600" defaultOpen>
+                    {presentations.map((item) => (
                       <ItemCard key={item.id} item={item} active={item.id === selectedItem?.id}
                         doneByMe={false} doneList={[]}
                         onClick={() => router.push(`/dashboard/${subjectId}?item=${item.id}`)}

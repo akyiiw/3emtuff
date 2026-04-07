@@ -10,9 +10,9 @@ export interface Database {
   public: {
     Tables: {
       profiles: {
-        Row: { id: string; name: string; email: string | null; display_name: string | null; created_at: string; updated_at: string };
-        Insert: { id: string; name: string; email?: string | null; display_name?: string | null; created_at?: string; updated_at?: string };
-        Update: { id?: string; name?: string; email?: string | null; display_name?: string | null; created_at?: string; updated_at?: string };
+        Row: { id: string; name: string; email: string | null; display_name: string | null; is_moderator: boolean | null; created_at: string; updated_at: string };
+        Insert: { id: string; name: string; email?: string | null; display_name?: string | null; is_moderator?: boolean | null; created_at?: string; updated_at?: string };
+        Update: { id?: string; name?: string; email?: string | null; display_name?: string | null; is_moderator?: boolean | null; created_at?: string; updated_at?: string };
 
       };
       items: {
@@ -41,9 +41,9 @@ export interface Database {
         Update: { id?: string; post_id?: string; body?: string; user_id?: string; created_at?: string; updated_at?: string };
       };
       reminder_preferences: {
-        Row: { user_id: string; enabled: boolean; schedule_days: number[]; created_at: string; updated_at: string };
-        Insert: { user_id: string; enabled?: boolean; schedule_days?: number[]; created_at?: string; updated_at?: string };
-        Update: { user_id?: string; enabled?: boolean; schedule_days?: number[]; created_at?: string; updated_at?: string };
+        Row: { user_id: string; enabled: boolean; schedule_days: number[]; pending_enabled: boolean | null; pending_schedule: number[] | null; concluded_enabled: boolean | null; concluded_schedule: number[] | null; created_at: string; updated_at: string };
+        Insert: { user_id: string; enabled?: boolean; schedule_days?: number[]; pending_enabled?: boolean | null; pending_schedule?: number[] | null; concluded_enabled?: boolean | null; concluded_schedule?: number[] | null; created_at?: string; updated_at?: string };
+        Update: { user_id?: string; enabled?: boolean; schedule_days?: number[]; pending_enabled?: boolean | null; pending_schedule?: number[] | null; concluded_enabled?: boolean | null; concluded_schedule?: number[] | null; created_at?: string; updated_at?: string };
       };
       notifications: {
         Row: { id: string; user_id: string; type: string; title: string; body: string | null; link: string | null; is_read: boolean; created_at: string; };
