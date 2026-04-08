@@ -20,32 +20,56 @@ const TYPE_LABELS: Record<string, string> = {
 
 // Recebe webhook do Supabase com INSERT em notifications
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  console.log("[notify-send] Received webhook request");
 
-  // Supabase webhook envia { record: { user_id, type, title, body, link, ... } }
-  const record = body.record ?? body;
+  // Verificar secret do webhook (segurança)
+  const webhookSecret = process.env.WEBHOOK_SECRET;
+  const authHeader = req.headers.get("authorization") || req.headers.get("x-webhook-secret");
 
-  if (!record?.user_id) {
-    return NextResponse.json({ error: "No user_id in record" }, { status: 400 });
-  }
-
-  if (!GMAIL_USER) {
-    return NextResponse.json({ error: "GMAIL_USER not configured" }, { status: 500 });
+  if (webhookSecret && authHeader !== `Bearer ${webhookSecret}` && authHeader !== webhookSecret) {
+    console.warn("[notify-send] Invalid webhook secret");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const body = await req.json();
+    console.log("[notify-send] Webhook payload:", JSON.stringify(body).substring(0, 500));
+
+    // Supabase webhook envia { record: { user_id, type, title, body, link, ... } }
+    // Ou pode ser a notification diretamente se for triggerado manualmente
+    const record = body.record ?? body;
+
+    if (!record?.user_id) {
+      console.warn("[notify-send] No user_id in record");
+      return NextResponse.json({ error: "No user_id in record" }, { status: 400 });
+    }
+
+    if (!GMAIL_USER) {
+      console.error("[notify-send] GMAIL_USER not configured");
+      return NextResponse.json({ error: "GMAIL_USER not configured" }, { status: 500 });
+    }
+
     const supabase = getAdminClient();
     const userId = record.user_id as string;
 
     // Pegar email do usuário
+    console.log(`[notify-send] Fetching profile for userId: ${userId}`);
     const { data: profile } = await supabase
       .from("profiles")
       .select("id, name, display_name, email")
       .eq("id", userId)
       .single() as { data: ProfileRow | null };
 
-    if (!profile) return NextResponse.json({ skipped: "User not found" });
-    if (!profile.email) return NextResponse.json({ skipped: "User has no email" });
+    if (!profile) {
+      console.warn(`[notify-send] Profile not found for userId: ${userId}`);
+      return NextResponse.json({ skipped: "User not found" });
+    }
+    if (!profile.email) {
+      console.warn(`[notify-send] User ${userId} has no email`);
+      return NextResponse.json({ skipped: "User has no email" });
+    }
+
+    console.log(`[notify-send] Sending notification email to: ${profile.email}`);
 
     // Pegar notificações recentes pra enviar todas de uma vez (batch)
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
@@ -59,8 +83,11 @@ export async function POST(req: NextRequest) {
       .returns<NotifRow[]>();
 
     if (!notifs || notifs.length === 0) {
+      console.log(`[notify-send] No unread notifications for ${userId}`);
       return NextResponse.json({ skipped: "No unread notifications" });
     }
+
+    console.log(`[notify-send] Found ${notifs.length} unread notifications for ${userId}`);
 
     const displayName = profile.display_name || profile.name || profile.email.split("@")[0];
 
@@ -112,9 +139,10 @@ export async function POST(req: NextRequest) {
       html: emailHtml,
     });
 
+    console.log(`[notify-send] Email sent successfully to ${profile.email}`);
     return NextResponse.json({ sent: notifs.length, to: profile.email });
   } catch (err) {
-    console.error("Notify error:", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    console.error("[notify-send] Error:", err);
+    return NextResponse.json({ error: "Internal error", details: String(err) }, { status: 500 });
   }
 }

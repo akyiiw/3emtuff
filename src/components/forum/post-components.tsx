@@ -1,6 +1,6 @@
 import {
   MessageSquare, ArrowUpRight, FileText, BookOpen, Tag, Clock,
-  MessageCircle, Trash2, X, Send, Pin, Edit2,
+  MessageCircle, Trash2, X, Send, Pin, Edit2, AlertTriangle,
 } from "lucide-react";
 import { getSubject, SUBJECTS } from "@/lib/subjects";
 import { createClient } from "@/lib/supabase/client";
@@ -160,6 +160,10 @@ export function ForumPostCard({ post, isOwner, onDelete, onOpen, onTogglePin, on
   const subject = post.subject_id ? getSubject(post.subject_id) : null;
   const userName = profileCache.get(post.user_id) ?? "Usuário";
 
+  // Estados de confirmação
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPinConfirm, setShowPinConfirm] = useState(false);
+
   // Resgata emoji do item referenciado de forma segura
   const itemEmoji = useMemo(() => {
     if (!post.item_ref?.subject_id) return null;
@@ -211,7 +215,7 @@ export function ForumPostCard({ post, isOwner, onDelete, onOpen, onTogglePin, on
               {isOwner && onTogglePin && (
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
+                  onClick={(e) => { e.stopPropagation(); setShowPinConfirm(true); }}
                   className={`p-1 rounded transition ${
                     post.is_pinned
                       ? "hover:bg-amber-50 dark:hover:bg-amber-900/20"
@@ -225,13 +229,63 @@ export function ForumPostCard({ post, isOwner, onDelete, onOpen, onTogglePin, on
               {isOwner && (
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }}
                   className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
                 >
                   <Trash2 size={14} className="text-zinc-400 hover:text-red-500" />
                 </button>
               )}
             </div>
+
+            {/* Modal de confirmação para deletar */}
+            {showDeleteConfirm && (
+              <div className="absolute inset-0 bg-white dark:bg-zinc-900/95 rounded-xl border border-red-200 dark:border-red-800 p-4 flex flex-col items-center justify-center gap-3 z-10" onClick={(e) => e.stopPropagation()}>
+                <AlertTriangle size={24} className="text-red-500" />
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">Excluir este post?</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">Esta ação não pode ser desfeita</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowDeleteConfirm(false); }}
+                    className="px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => { setShowDeleteConfirm(false); onDelete(); }}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal de confirmação para fixar/desafixar */}
+            {showPinConfirm && (
+              <div className="absolute inset-0 bg-white dark:bg-zinc-900/95 rounded-xl border border-amber-200 dark:border-amber-800 p-4 flex flex-col items-center justify-center gap-3 z-10" onClick={(e) => e.stopPropagation()}>
+                <Pin size={24} className="text-amber-500" />
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">
+                  {post.is_pinned ? "Desafixar este post?" : "Fixar este post?"}
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center">
+                  {post.is_pinned ? "O post aparecerá no topo" : "O post será fixado no topo do fórum"}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowPinConfirm(false); }}
+                    className="px-3 py-1.5 text-xs font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => { setShowPinConfirm(false); onTogglePin?.(); }}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition"
+                  >
+                    {post.is_pinned ? "Desafixar" : "Fixar"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {post.body && (
