@@ -34,7 +34,9 @@
       "Bash(npm run:*)",
       "Bash(git config:*)",
       "Bash(git reset:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

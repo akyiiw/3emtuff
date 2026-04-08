@@ -192,9 +192,30 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
 
   async function handleDelete() {
     if (!selectedItem || !deleteCheck) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("items").delete().eq("id", selectedItem.id);
-    if (error) { alert("Erro ao apagar: " + error.message); return; }
+
+    const isOwner = currentUser === selectedItem.created_by;
+
+    if (isOwner) {
+      // Dono pode deletar diretamente
+      const supabase = createClient();
+      const { error } = await supabase.from("items").delete().eq("id", selectedItem.id);
+      if (error) { alert("Erro ao apagar: " + error.message); return; }
+    } else {
+      // Moderador precisa usar a API de moderação
+      if (!isModerator) {
+        alert("Você não tem permissão para apagar este item");
+        return;
+      }
+      const response = await fetch(`/api/moderate?table=items&id=${selectedItem.id}&userId=${currentUser}`, {
+        method: "DELETE"
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        alert("Erro ao apagar: " + (result.error || "Permissão negada"));
+        return;
+      }
+    }
+
     setSelectedItem(null);
     setItemLinks([]);
     setShowDeleteConfirm(false);
@@ -344,9 +365,9 @@ export default function SubjectPage({ params }: { params: Promise<{ subject: str
                     <button onClick={() => setEditMode(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition" title="Editar">
                       <Edit2 size={14} className="text-zinc-400" />
                     </button>
-                    {!showDeleteConfirm && (
+                    {(isModerator || currentUser === selectedItem.created_by) && !showDeleteConfirm && (
                       <button onClick={() => setShowDeleteConfirm(true)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition" title="Excluir">
-                        <Trash2 size={14} className="text-zinc-400" />
+                        <Trash2 size={14} className="text-zinc-400 hover:text-red-500" />
                       </button>
                     )}
                   </div>

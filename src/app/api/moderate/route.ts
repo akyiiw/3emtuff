@@ -27,14 +27,27 @@ export async function DELETE(req: NextRequest) {
 
   // Check is_moderator flag in profiles (also allow the hardcoded MOD id)
   if (!isModeratorRequest && userId) {
-    const { data: profile } = await adminSupabase
+    console.log(`[moderate] Checking moderator status for userId: ${userId}`);
+    const result = await adminSupabase
       .from("profiles")
       .select("is_moderator")
       .eq("id", userId)
-      .single() as { data: ProfileRow | null; error: any };
-    if (!profile?.is_moderator) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      .single();
+
+    const profile = result.data as { is_moderator: boolean } | null;
+    const profileError = result.error;
+
+    if (profileError) {
+      console.error("[moderate] Error fetching profile:", profileError);
+      return NextResponse.json({ error: "Auth check failed", details: profileError.message }, { status: 500 });
     }
+
+    console.log(`[moderate] Profile fetched:`, profile);
+    if (!profile || profile.is_moderator !== true) {
+      console.log(`[moderate] User ${userId} is not a moderator (is_moderator: ${profile?.is_moderator})`);
+      return NextResponse.json({ error: "Unauthorized - not a moderator" }, { status: 403 });
+    }
+    console.log(`[moderate] User ${userId} is a moderator - proceeding with delete`);
   }
 
   if (!isModeratorRequest && !userId) {
