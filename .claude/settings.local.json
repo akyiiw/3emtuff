@@ -22,7 +22,19 @@
       "Bash(exit 0)",
       "Bash(sort -t: -k2,2)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(grep -rl -i \"smtp\\\\|sendEmail\\\\|enviarEmail\\\\|send_email\\\\|sendMail\\\\|send_mail\\\\|smtp\\\\|gmail\\\\|nodemailer\\\\|resend\\\\|mailer\\\\|email\" D:/Pietro/3emtuff/src/ --include=*.ts --include=*.tsx --include=*.js --include=*.jsx --include=*.py --include=*.json --include=*.env*)",
+      "Bash(find . -iname *notify* -o -iname *notific* -o -iname *email* -o -iname *send*)",
+      "Bash(find ./src -iname *supabase* -o -iname *admin*)",
+      "Bash(find . -name .env* -o -name *.env)",
+      "Bash(find ./src -iname *.ts -o -iname *.tsx)",
+      "Bash(xargs grep:*)",
+      "Bash(find ./src -name *.ts -o -name *.tsx)",
+      "Bash(find ./src -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
+      "Bash(npm run:*)",
+      "Bash(git config:*)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)"
     ]
   }
 }
