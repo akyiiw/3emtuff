@@ -51,20 +51,16 @@ export async function POST(req: NextRequest) {
     const supabase = getAdminClient();
     const userId = record.user_id as string;
 
-    // Primeiro, pegar email da auth.users (garantido)
+    // Primeiro, pegar email da auth.users usando admin getUserById
     console.log(`[notify-send] Fetching user from auth.users for userId: ${userId}`);
-    const { data: authUser } = await supabase
-      .from("auth.users")
-      .select("email, user_metadata")
-      .eq("id", userId)
-      .single() as { data: { email: string; user_metadata?: any } | null };
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
 
-    if (!authUser || !authUser.email) {
-      console.warn(`[notify-send] User ${userId} has no email in auth.users`);
+    if (authError || !authUser || !authUser.user?.email) {
+      console.warn(`[notify-send] User ${userId} has no email in auth.users`, authError);
       return NextResponse.json({ skipped: "User has no email" });
     }
 
-    const email = authUser.email;
+    const email = authUser.user.email;
 
     // Pegar nome do perfil (se existir)
     let displayName: string;
