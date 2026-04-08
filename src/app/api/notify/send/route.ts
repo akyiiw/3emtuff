@@ -4,7 +4,6 @@ import { getAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
 type NotifRow = Database["public"]["Tables"]["notifications"]["Row"];
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"] & { email: string | null };
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://3emtuff.vercel.app";
@@ -52,24 +51,40 @@ export async function POST(req: NextRequest) {
     const supabase = getAdminClient();
     const userId = record.user_id as string;
 
-    // Pegar email do usuário
-    console.log(`[notify-send] Fetching profile for userId: ${userId}`);
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id, name, display_name, email")
+    // Primeiro, pegar email da auth.users (garantido)
+    console.log(`[notify-send] Fetching user from auth.users for userId: ${userId}`);
+    const { data: authUser } = await supabase
+      .from("auth.users")
+      .select("email, user_metadata")
       .eq("id", userId)
-      .single() as { data: ProfileRow | null };
+      .single() as { data: { email: string; user_metadata?: any } | null };
 
-    if (!profile) {
-      console.warn(`[notify-send] Profile not found for userId: ${userId}`);
-      return NextResponse.json({ skipped: "User not found" });
-    }
-    if (!profile.email) {
-      console.warn(`[notify-send] User ${userId} has no email`);
+    if (!authUser || !authUser.email) {
+      console.warn(`[notify-send] User ${userId} has no email in auth.users`);
       return NextResponse.json({ skipped: "User has no email" });
     }
 
-    console.log(`[notify-send] Sending notification email to: ${profile.email}`);
+    const email = authUser.email;
+
+    // Pegar nome do perfil (se existir)
+    let displayName: string;
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("name, display_name")
+        .eq("id", userId)
+        .single() as { data: { name: string; display_name: string } | null };
+
+      if (profileData) {
+        displayName = profileData.display_name || profileData.name || email.split("@")[0];
+      } else {
+        displayName = email.split("@")[0];
+      }
+    } catch {
+      displayName = email.split("@")[0];
+    }
+
+    console.log(`[notify-send] Sending notification email to: ${email} (${displayName})`);
 
     // Pegar notificações recentes pra enviar todas de uma vez (batch)
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
@@ -89,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`[notify-send] Found ${notifs.length} unread notifications for ${userId}`);
 
-    const displayName = profile.display_name || profile.name || profile.email.split("@")[0];
+    // displayName já foi definido acima
 
     let notifRows = "";
     for (const n of notifs) {
@@ -134,13 +149,13 @@ export async function POST(req: NextRequest) {
       </div>`;
 
     await sendEmail({
-      to: profile.email,
+      to: email,
       subject: `[3emtuff] ${notifs.length} notificaç${notifs.length > 1 ? "ões" : "ão"} pendente${notifs.length > 1 ? "s" : ""}`,
       html: emailHtml,
     });
 
-    console.log(`[notify-send] Email sent successfully to ${profile.email}`);
-    return NextResponse.json({ sent: notifs.length, to: profile.email });
+    console.log(`[notify-send] Email sent successfully to ${email}`);
+    return NextResponse.json({ sent: notifs.length, to: email });
   } catch (err) {
     console.error("[notify-send] Error:", err);
     return NextResponse.json({ error: "Internal error", details: String(err) }, { status: 500 });
