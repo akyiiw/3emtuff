@@ -8,7 +8,7 @@ function getTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!user || !pass) throw new Error("SMTP_USER and SMTP_APP_PASSWORD not configured");
+  if (!user || !pass) throw new Error("GMAIL_USER and GMAIL_APP_PASSWORD not configured");
 
   transporter = nodemailer.createTransport({
     service: "gmail",
@@ -26,7 +26,7 @@ export async function sendEmail(options: {
   const transport = getTransporter();
 
   await transport.sendMail({
-    from: `"3emtuff" <${process.env.SMTP_USER}>`,
+    from: `"3emtuff" <${process.env.GMAIL_USER}>`,
     to: options.to,
     subject: options.subject,
     html: options.html,

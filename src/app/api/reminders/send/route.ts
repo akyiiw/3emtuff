@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
+import { sendEmail } from "@/lib/send-email";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const CRON_SECRET = process.env.CRON_SECRET;
 
-const FROM_EMAIL = "3emtuff <onboarding@resend.dev>";
+const FROM_EMAIL = process.env.GMAIL_USER ? `3emtuff <${process.env.GMAIL_USER}>` : "3emtuff <no-reply@3emtuff.com>";
 
 /** Build a deduped list of target date strings from a schedule_days array */
 function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
