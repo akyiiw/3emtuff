@@ -43,8 +43,7 @@ function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
 
 export async function GET(req: NextRequest) {
   // Verificação de Segurança
-  const secret = req.headers.get("x-cron-secret");
-  if (!CRON_SECRET || secret !== CRON_SECRET) {
+  if (!CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
