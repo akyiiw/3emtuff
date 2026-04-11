@@ -44,7 +44,6 @@ function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
 }
 
 export async function GET(req: NextRequest) {
-  // const secret = req.headers.get("x-cron-secret"); || secret !== CRON_SECRET
   if (!CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -100,7 +99,7 @@ export async function GET(req: NextRequest) {
             month: "long",
           });
 
-          console.log(`Usuário ${userEmail} tem ${profiles?.length ?? 0}  itens para as datas ${targetDates}`);
+          console.log(`Usuário ${userEmail} tem ${profiles?.length ?? 0} itens para as datas ${targetDates}`);
 
           // Push the email task to the array instead of awaiting it sequentially
           emailPromises.push(
