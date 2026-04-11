@@ -3,7 +3,6 @@ import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
-// Força a rota a não usar cache (essencial para Cron no Vercel)
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -28,11 +27,12 @@ const transporter = nodemailer.createTransport({
 
 const FROM_EMAIL = `3emtuff <${process.env.GMAIL_USER}>`;
 
+// Transforma os dias do agendamento em datas textuais (YYYY-MM-DD)
 function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
   const dates = new Set<string>();
   for (const daysBefore of scheduleDays) {
     const d = new Date(today);
-    d.setDate(d.getDate() + Number(daysBefore)); // Garante que é número
+    d.setDate(d.getDate() + Number(daysBefore));
     const isoDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
       .toISOString()
       .split("T")[0];
@@ -42,8 +42,8 @@ function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
 }
 
 export async function GET(req: NextRequest) {
-  // Verificação de Segurança
-  if (!CRON_SECRET) {
+  const secret = req.headers.get("x-cron-secret");
+  if (!CRON_SECRET || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -66,9 +66,9 @@ export async function GET(req: NextRequest) {
       const userEmail = profile.email;
       const displayName = profile.display_name || profile.name || userEmail.split("@")[0];
 
-      // --- FUNÇÃO AUXILIAR DE ENVIO ---
-      const queueEmail = (itemText: string, date: string, type: "Pendente" | "Concluída") => {
-        const dueFormatted = new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+      // Função para padronizar o envio de e-mail
+      const queueEmail = (title: string, dateStr: string, type: "Pendente" | "Concluída") => {
+        const dateFormatted = new Date(dateStr + "T12:00:00").toLocaleDateString("pt-BR", {
           day: "2-digit",
           month: "long",
         });
@@ -77,39 +77,56 @@ export async function GET(req: NextRequest) {
           transporter.sendMail({
             from: FROM_EMAIL,
             to: userEmail,
-            subject: `[3emtuff] ${type}: ${itemText}`,
+            subject: `[3emtuff] ${type}: ${title}`,
             html: `
-              <div style="font-family: sans-serif; color: #333;">
-                <h2>Olá, ${displayName}</h2>
-                <p>Você tem uma atividade <strong>${type.toLowerCase()}</strong>: <strong>${itemText}</strong></p>
-                <p>Data: ${dueFormatted}</p>
+              <div style="font-family: sans-serif; color: #333; max-width: 600px; border: 1px solid #eee; padding: 20px;">
+                <h2 style="color: #2e7d32;">Olá, ${displayName}</h2>
+                <p>Notificação de atividade <strong>${type.toLowerCase()}</strong>:</p>
+                <p style="font-size: 18px;"><strong>${title}</strong></p>
+                <p style="color: #666;">Data registrada: ${dateFormatted}</p>
               </div>`
           }).then(() => { totalSent++; })
-            .catch(err => console.error(`Erro ao enviar para ${userEmail}:`, err))
+            .catch(err => console.error(`Erro e-mail ${userEmail}:`, err))
         );
       };
 
-      // --- LOGICA: ATIVIDADES PENDENTES ---
+      // --- 1. BUSCA PENDENTES (Tabela 'items') ---
       if (pref.pending_enabled) {
-        const dates = buildTargetDates(today, pref.pending_schedule || []);
+        const targetDates = buildTargetDates(today, pref.pending_schedule || []);
         const { data: items } = await supabase
           .from("items")
-          .select("*")
-          .in("due_date", dates)
-          .eq("created_by", pref.user_id); 
-          // REMOVIDO o filtro de status que não existe no seu banco
+          .select("text, due_date")
+          .in("due_date", targetDates)
+          .eq("created_by", pref.user_id);
 
         items?.forEach(item => queueEmail(item.text, item.due_date, "Pendente"));
       }
 
-      // --- LOGICA: ATIVIDADES CONCLUÍDAS ---
-      // Aqui você precisaria de uma tabela ou coluna que indique o que está concluído.
-      // Se você não tem a coluna 'status', como o sistema sabe o que foi concluído?
-      // Vou deixar a lógica preparada para quando você tiver essa distinção:
+      // --- 2. BUSCA CONCLUÍDAS (Tabela 'task_done' + join com 'items') ---
       if (pref.concluded_enabled) {
-        const dates = buildTargetDates(today, pref.concluded_schedule || []);
-        // Exemplo: Se você criar uma tabela 'completed_items' no futuro
-        // const { data: doneItems } = await supabase.from("completed_items")...
+        const targetDates = buildTargetDates(today, pref.concluded_schedule || []);
+        
+        // Aqui buscamos na task_done, mas precisamos do texto que está na items
+        const { data: doneTasks } = await supabase
+          .from("task_done")
+          .select(`
+            done_at,
+            items ( text )
+          `)
+          .eq("user_id", pref.user_id);
+
+        doneTasks?.forEach(task => {
+          if (!task.done_at || !task.items) return;
+          
+          // Extrai apenas a data YYYY-MM-DD do done_at (que é timestamp)
+          const doneDate = task.done_at.split("T")[0];
+          
+          // Se a data da conclusão estiver na lista de datas do agendamento, envia!
+          if (targetDates.includes(doneDate)) {
+            const itemText = Array.isArray(task.items) ? task.items[0]?.text : (task.items as any)?.text;
+            queueEmail(itemText || "Tarefa s/ nome", doneDate, "Concluída");
+          }
+        });
       }
     }
 
