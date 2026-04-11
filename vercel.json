@@ -2,10 +2,7 @@
   "crons": [
     {
       "path": "/api/reminders/send",
-      "schedule": "0 9 * * *",
-      "headers": {
-        "x-cron-secret": "process.env.CRON_SECRET"
-      }
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/notify-email",
