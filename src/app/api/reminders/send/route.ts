@@ -64,6 +64,24 @@ export async function GET(req: NextRequest) {
       const profile = profileMap.get(pref.user_id);
       if (!profile?.email) continue;
 
+      console.log("-----------------------------------------");
+      console.log("PROCESSANDO USUÁRIO:");
+      console.log("ID:", pref.user_id);
+      console.log("Nome:", profile?.display_name || profile?.name);
+      console.log("Email:", profile?.email);
+      console.log("Preferências:", {
+        pendentes_ativo: pref.pending_enabled,
+        agenda_pendentes: pref.pending_schedule,
+        concluidos_ativo: pref.concluded_enabled,
+        agenda_concluidos: pref.concluded_schedule
+      });
+      console.log("-----------------------------------------");
+
+      if (!profile?.email) {
+        console.log(`PULANDO: Usuário ${pref.user_id} não tem email vinculado.`);
+        continue;
+      }
+
       const userEmail = profile.email;
       const displayName = profile.display_name || profile.name || userEmail.split("@")[0];
 
