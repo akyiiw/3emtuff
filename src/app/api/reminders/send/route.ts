@@ -100,6 +100,8 @@ export async function GET(req: NextRequest) {
             month: "long",
           });
 
+          console.log(`Usuário ${userEmail} tem ${profiles?.length ?? 0}  itens para as datas ${targetDates}`);
+
           // Push the email task to the array instead of awaiting it sequentially
           emailPromises.push(
             transporter.sendMail({
@@ -113,22 +115,19 @@ export async function GET(req: NextRequest) {
               </div>`,
             }).then(() => {
               totalSent++;
+              
             }).catch((err) => {
               // Catch individual email errors so the rest still process
               console.error(`Failed to send email to ${userEmail}:`, err);
             })
           );
         }
+        
       } 
       
       // --- CONCLUDED BLOCK ---
       // Apply similar logic here, pushing to emailPromises
     }
-
-    // Wait for all emails to finish sending in parallel
-    await Promise.all(emailPromises);
-    console.log(`Total reminder emails sent: ${totalSent}`);
-    console.log(`Total users processed: ${profiles?.length ?? 0}`);
 
     return NextResponse.json({ sent: totalSent });
   } catch (err) {
