@@ -86,7 +86,6 @@ export async function GET(req: NextRequest) {
           .from("items")
           .select("*")
           .in("due_date", targetDates)
-          .eq("created_by", pref.user_id)
           .eq("status", "pending"); // IMPORTANT: Ensure you don't email about completed tasks
 
         const items = (userItems as Database["public"]["Tables"]["items"]["Row"][]) ?? [];
@@ -128,6 +127,8 @@ export async function GET(req: NextRequest) {
 
     // Wait for all emails to finish sending in parallel
     await Promise.all(emailPromises);
+    console.log(`Total reminder emails sent: ${totalSent}`);
+    console.log(`Total users processed: ${profiles?.length ?? 0}`);
 
     return NextResponse.json({ sent: totalSent });
   } catch (err) {
