@@ -3,18 +3,17 @@ import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
+// Força a rota a não usar cache (essencial para Cron no Vercel)
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const CRON_SECRET = process.env.CRON_SECRET;
 
 export const getAdminClient = () => {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, 
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 };
 
@@ -27,24 +26,25 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM_EMAIL = process.env.GMAIL_USER ? `3emtuff <${process.env.GMAIL_USER}>` : "3emtuff <no-reply@3emtuff.com>";
+const FROM_EMAIL = `3emtuff <${process.env.GMAIL_USER}>`;
 
 function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
   const dates = new Set<string>();
   for (const daysBefore of scheduleDays) {
     const d = new Date(today);
-    d.setDate(d.getDate() + daysBefore);
-    // Use local timezone format to avoid UTC offset issues shifting the day
-    const localDateString = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    d.setDate(d.getDate() + Number(daysBefore)); // Garante que é número
+    const isoDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
       .toISOString()
       .split("T")[0];
-    dates.add(localDateString);
+    dates.add(isoDate);
   }
   return [...dates];
 }
 
 export async function GET(req: NextRequest) {
-  if (!CRON_SECRET) {
+  // Verificação de Segurança
+  const secret = req.headers.get("x-cron-secret");
+  if (!CRON_SECRET || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -53,84 +53,72 @@ export async function GET(req: NextRequest) {
   today.setHours(0, 0, 0, 0);
 
   try {
-    const { data: prefs } = await supabase
-      .from("reminder_preferences")
-      .select("*");
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, name, display_name, email");
-      
+    const { data: prefs } = await supabase.from("reminder_preferences").select("*");
+    const { data: profiles } = await supabase.from("profiles").select("id, display_name, name, email");
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) ?? []);
+
     let totalSent = 0;
-    
-    // Array to hold all email promises so we can send them concurrently
     const emailPromises: Promise<void>[] = [];
 
     for (const pref of (prefs ?? [])) {
       const profile = profileMap.get(pref.user_id);
-      const userEmail = profile?.email;
-      if (!userEmail) continue;
+      if (!profile?.email) continue;
 
-      const displayName = profile?.display_name || profile?.name || userEmail.split("@")[0];
+      const userEmail = profile.email;
+      const displayName = profile.display_name || profile.name || userEmail.split("@")[0];
 
-      // --- PENDING BLOCK ---
-      const pendingEnabled = pref.pending_enabled ?? pref.enabled ?? true;
-      const pendingSchedule = (pref.pending_schedule ?? pref.schedule_days) ?? [0, 1, 2];
+      // --- FUNÇÃO AUXILIAR DE ENVIO ---
+      const queueEmail = (itemText: string, date: string, type: "Pendente" | "Concluída") => {
+        const dueFormatted = new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "long",
+        });
 
-      if (pendingEnabled && pendingSchedule.length > 0) {
-        const targetDates = buildTargetDates(today, pendingSchedule);
-        
-        const { data: userItems, error } = await supabase
+        emailPromises.push(
+          transporter.sendMail({
+            from: FROM_EMAIL,
+            to: userEmail,
+            subject: `[3emtuff] ${type}: ${itemText}`,
+            html: `
+              <div style="font-family: sans-serif; color: #333;">
+                <h2>Olá, ${displayName}</h2>
+                <p>Você tem uma atividade <strong>${type.toLowerCase()}</strong>: <strong>${itemText}</strong></p>
+                <p>Data: ${dueFormatted}</p>
+              </div>`
+          }).then(() => { totalSent++; })
+            .catch(err => console.error(`Erro ao enviar para ${userEmail}:`, err))
+        );
+      };
+
+      // --- LOGICA: ATIVIDADES PENDENTES ---
+      if (pref.pending_enabled) {
+        const dates = buildTargetDates(today, pref.pending_schedule || []);
+        const { data: items } = await supabase
           .from("items")
           .select("*")
-          .in("due_date", targetDates)
-          .eq("status", "pending"); // IMPORTANT: Ensure you don't email about completed tasks
+          .in("due_date", dates)
+          .eq("created_by", pref.user_id); 
+          // REMOVIDO o filtro de status que não existe no seu banco
 
-        const items = (userItems as Database["public"]["Tables"]["items"]["Row"][]) ?? [];
+        items?.forEach(item => queueEmail(item.text, item.due_date, "Pendente"));
+      }
 
-        for (const item of items) {
-          const dueDate = item.due_date;
-          if (!dueDate) continue;
-
-          // Note: added 'T12:00:00' so the timezone offset doesn't accidentally push it back a day
-          const dueFormatted = new Date(dueDate + "T12:00:00").toLocaleDateString("pt-BR", {
-            day: "2-digit",
-            month: "long",
-          });
-
-          console.log(`Usuário ${userEmail} tem ${profiles?.length ?? 0} itens para as datas ${targetDates}`);
-
-          // Push the email task to the array instead of awaiting it sequentially
-          emailPromises.push(
-            transporter.sendMail({
-              from: FROM_EMAIL,
-              to: userEmail,
-              subject: `[3emtuff] Pendente: ${item.text}`,
-              html: `<div style="font-family: sans-serif;">
-                <h2>Olá, ${displayName}</h2>
-                <p>Você tem uma atividade pendente: <strong>${item.text}</strong></p>
-                <p>Data de entrega: ${dueFormatted}</p>
-              </div>`,
-            }).then(() => {
-              totalSent++;
-              
-            }).catch((err) => {
-              // Catch individual email errors so the rest still process
-              console.error(`Failed to send email to ${userEmail}:`, err);
-            })
-          );
-        }
-        
-      } 
-      
-      // --- CONCLUDED BLOCK ---
-      // Apply similar logic here, pushing to emailPromises
+      // --- LOGICA: ATIVIDADES CONCLUÍDAS ---
+      // Aqui você precisaria de uma tabela ou coluna que indique o que está concluído.
+      // Se você não tem a coluna 'status', como o sistema sabe o que foi concluído?
+      // Vou deixar a lógica preparada para quando você tiver essa distinção:
+      if (pref.concluded_enabled) {
+        const dates = buildTargetDates(today, pref.concluded_schedule || []);
+        // Exemplo: Se você criar uma tabela 'completed_items' no futuro
+        // const { data: doneItems } = await supabase.from("completed_items")...
+      }
     }
 
-    return NextResponse.json({ sent: totalSent });
+    await Promise.all(emailPromises);
+    return NextResponse.json({ success: true, sent: totalSent });
+
   } catch (err) {
-    console.error("Reminder error:", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    console.error("Erro Geral:", err);
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
