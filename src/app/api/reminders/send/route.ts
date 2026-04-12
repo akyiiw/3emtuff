@@ -143,32 +143,24 @@ export async function GET(req: NextRequest) {
         }
 
         const emailHtml = `
-          <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 16px;">
-            <div style="text-align: center; margin-bottom: 24px;">
-              <span style="background: #f4f4f5; padding: 6px 12px; border-radius: 20px; font-size: 12px; color: #71717a; font-weight: 500;">
-                📅 Resumo Diário
-              </span>
-            </div>
-            
+          <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 12px;">
             <h2 style="margin: 0; color: #18181b; font-size: 24px; text-align: center;">
-              Olá, ${profile.display_name || profile.name}!
+              Bom dia, ${profile.display_name || profile.name}!
             </h2>
             <p style="color: #52525b; text-align: center; font-size: 16px; margin-top: 8px;">
-              Aqui está sua agenda coletiva para os próximos dias no <strong>3emtuff</strong>.
+              Aqui está sua agenda para os próximos dias no EPC.
             </p>
-
-            ${agendaHtml}
-
-            <div style="text-align: center; margin-top: 32px;">
-              <a href="${BASE_URL}" 
-                 style="display: inline-block; padding: 12px 28px; background: #18181b; color: #ffffff; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 15px;">
-                Abrir Painel Completo
+            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+              ${agendaHtml}
+            </table>
+            <div style="text-align: center; margin-top: 24px;">
+              <a href="${BASE_URL}"
+                style="display: inline-block; padding: 10px 24px; background: #18181b; color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+                Ver todas no 3emtuff
               </a>
             </div>
-            
-            <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px; text-align: center; line-height: 1.5;">
-              Você está recebendo este resumo com base nas suas preferências de lembretes.<br>
-              © 2026 3emtuff.
+            <p style="color: #a1a1aa; font-size: 12px; margin-top: 24px; text-align: center;">
+              Você está recebendo este e-mail porque tem notificações pendentes no 3emtuff.
             </p>
           </div>`;
 
@@ -176,7 +168,7 @@ export async function GET(req: NextRequest) {
           await transporter.sendMail({
             from: `3emtuff <${process.env.GMAIL_USER}>`,
             to: profile.email,
-            subject: `[3emtuff] Resumo de Atividades - ${formatDateBr(today.toISOString().split("T")[0])}`,
+            subject: `Resumo de Atividades - ${formatDateBr(today.toISOString().split("T")[0])}`,
             html: emailHtml,
           });
           emailsSentCount++;

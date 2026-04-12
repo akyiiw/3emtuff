@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
     }
 
     const emailHtml = `
-      <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border-radius: 12px;">
+      <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 12px;">
         <h2 style="margin-top: 0; color: #18181b; font-size: 20px;">
           Você tem ${notifs.length} notificaç${notifs.length > 1 ? "ões" : "ão"} pendente${notifs.length > 1 ? "s" : ""}
         </h2>
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
 
     await sendEmail({
       to: email,
-      subject: `[3emtuff] ${notifs.length} notificaç${notifs.length > 1 ? "ões" : "ão"} pendente${notifs.length > 1 ? "s" : ""}`,
+      subject: `${notifs.length} notificaç${notifs.length > 1 ? "ões" : "ão"} pendente${notifs.length > 1 ? "s" : ""}`,
       html: emailHtml,
     });
 
