@@ -67,23 +67,30 @@ export async function GET(req: NextRequest) {
 
         const { data: doneTasks } = await supabase
           .from("task_done")
-          .select(`item_id, done_at, items ( text )`)
+          .select(`item_id, done_at, items ( text, subject_id )`)
           .eq("user_id", pref.user_id) // MUDANÇA CRUCIAL: Filtra para mostrar apenas o que EU fiz
           .in("done_at_date_only", targetDatesDone);
 
-        doneTasks?.forEach(task => {
-          if (!task.done_at || !task.items) return;
-          const date = task.done_at.split("T")[0];
-          if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
-          agendaAgrupada[date].push({ 
-            text: (task.items as any).text, 
-            status: "Concluída",
-            color: "#10b981",
-            bg: "#ecfdf5",
-            link: "/atividades",
-            timestamp: new Date(task.done_at).getTime()
-          });
-        });
+        if (doneTasks) {
+          for (const task of doneTasks) {
+            if (!task.done_at || !task.items) continue;
+            const date = task.done_at.split("T")[0];
+            if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
+
+            const { getSubject } = await import("@/lib/subjects");
+            const subj = getSubject((task.items as any).subject_id);
+            const emoji = subj?.emoji ?? "📚";
+
+            agendaAgrupada[date].push({
+              text: `${emoji} ${(task.items as any).text}`,
+              status: "Concluída",
+              color: "#10b981",
+              bg: "#ecfdf5",
+              link: "/atividades",
+              timestamp: new Date(task.done_at).getTime()
+            });
+          }
+        }
       }
 
       // --- 2. BUSCAR PENDENTES (COLETIVO, MAS FILTRANDO O QUE O USER JÁ FEZ) ---
@@ -96,24 +103,31 @@ export async function GET(req: NextRequest) {
 
         const { data: items } = await supabase
           .from("items")
-          .select("id, text, due_date, created_at")
+          .select("id, text, due_date, created_at, subject_id")
           .in("due_date", targetDatesPending);
 
         const { data: userDone } = await supabase.from("task_done").select("item_id").eq("user_id", pref.user_id);
         const doneIds = new Set(userDone?.map(d => d.item_id));
 
-        items?.forEach(item => {
-          if (doneIds.has(item.id)) return;
-          if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
-          agendaAgrupada[item.due_date].push({ 
-            text: item.text, 
-            status: "Pendente",
-            color: "#6b7280",
-            bg: "#f3f4f6",
-            link: "/atividades",
-            timestamp: new Date(item.created_at).getTime()
-          });
-        });
+        if (items) {
+          for (const item of items) {
+            if (doneIds.has(item.id)) continue;
+            if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
+
+            const { getSubject } = await import("@/lib/subjects");
+            const subj = getSubject(item.subject_id);
+            const emoji = subj?.emoji ?? "📚";
+
+            agendaAgrupada[item.due_date].push({
+              text: `${emoji} ${item.text}`,
+              status: "Pendente",
+              color: "#6b7280",
+              bg: "#f3f4f6",
+              link: "/atividades",
+              timestamp: new Date(item.created_at).getTime()
+            });
+          }
+        }
       }
 
       // --- 3. MONTAGEM DO HTML COM ORDEM INVERSA ---
@@ -156,10 +170,10 @@ export async function GET(req: NextRequest) {
 
         const emailHtml = `
           <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 12px;">
-            <h2 style="margin-top: 0; color: #18181b; font-size: 20px; text-align: center;">
+            <h2 style="margin-top: 0; color: #18181b; font-size: 20px; text-align: left;">
               Bom dia, ${profile.display_name || profile.name}!
             </h2>
-            <p style="color: #3f3f46; text-align: center; margin-bottom: 24px;">
+            <p style="color: #3f3f46; text-align: left; margin-bottom: 24px;">
               Aqui está seu resumo de atividades no 3emtuff:
             </p>
 

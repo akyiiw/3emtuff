@@ -117,7 +117,7 @@ export async function notifyNewItem(
   await broadcastNotification(
     excludeUserId,
     notifType,
-    `${emoji} ${typeLabel}: ${itemText}`,
+    `${emoji} ${itemText}`,
     `${label}`,
     `/dashboard/${subjectId}?item=${itemId}`
   );

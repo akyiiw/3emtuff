@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
         <tr>
           <td style="padding: 10px 0; vertical-align: top; width: 100px;">
             <span style="display: inline-block; padding: 2px 8px; background: #f3f4f6; border-radius: 4px; font-size: 11px; color: #6b7280; font-weight: 600;">
-              ${label.toUpperCase()}
+              ${label}
             </span>
           </td>
           <td style="padding: 10px 0;">
