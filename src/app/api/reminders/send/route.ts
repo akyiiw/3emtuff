@@ -15,21 +15,16 @@ export const getAdminClient = () => {
   );
 };
 
-function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
-  const dates = new Set<string>();
-  for (const daysBefore of scheduleDays) {
-    const d = new Date(today);
-    d.setDate(d.getDate() + Number(daysBefore));
-    const isoDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-      .toISOString()
-      .split("T")[0];
-    dates.add(isoDate);
-  }
-  return [...dates];
+// Auxiliar para formatar a data por extenso
+function formatDateBr(dateStr: string) {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "long",
+  });
 }
 
 export async function GET(req: NextRequest) {
-  console.log("=== ROTA DE LEMBRETES ACESSADA ===");
+  console.log("=== INICIANDO ENVIO DE RESUMO DIÁRIO ===");
 
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
@@ -42,7 +37,6 @@ export async function GET(req: NextRequest) {
 
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${CRON_SECRET}`) {
-    console.log("BLOQUEADO: Token de autorização inválido ou ausente.");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -53,98 +47,104 @@ export async function GET(req: NextRequest) {
   try {
     const { data: prefs } = await supabase.from("reminder_preferences").select("*");
     const { data: profiles } = await supabase.from("profiles").select("id, name, display_name, email");
-    
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) ?? []);
-    let totalSent = 0;
+    
+    let emailsSentCount = 0;
 
     for (const pref of (prefs ?? [])) {
       const profile = profileMap.get(pref.user_id);
       if (!profile?.email) continue;
 
-      const userEmail = profile.email;
-      const displayName = profile.display_name || profile.name || userEmail.split("@")[0];
-      const FROM_EMAIL = `3emtuff <${process.env.GMAIL_USER}>`;
+      // --- ESTRUTURA PARA AGRUPAR POR DATA ---
+      // Formato: { "2026-04-12": [ {text: "Tarefa", status: "Pendente"}, ... ] }
+      const agendaAgrupada: Record<string, { text: string; status: string }[]> = {};
 
-      console.log(`-----------------------------------------`);
-      console.log(`PROCESSANDO: ${userEmail}`);
-
-      // 1. BUSCAR TAREFAS CONCLUÍDAS PRIMEIRO
+      // 1. Buscar Concluídos
       const { data: doneTasks } = await supabase
         .from("task_done")
         .select(`item_id, done_at, items ( text )`)
         .eq("user_id", pref.user_id);
 
-      // Criar um Set com os IDs das tarefas concluídas para exclusão mútua
       const doneItemIds = new Set(doneTasks?.map(t => t.item_id) || []);
 
-      // 2. LOGICA DE PENDENTES (Só envia se não estiver no Set de concluídos)
+      if (pref.concluded_enabled && doneTasks) {
+        doneTasks.forEach(task => {
+          if (!task.done_at || !task.items) return;
+          const date = task.done_at.split("T")[0];
+          if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
+          agendaAgrupada[date].push({ 
+            text: (task.items as any).text, 
+            status: "✅ Concluída, muito bem!" 
+          });
+        });
+      }
+
+      // 2. Buscar Pendentes
       if (pref.pending_enabled) {
-        const targetDates = buildTargetDates(today, pref.pending_schedule || []);
+        // Buscamos um range de datas (ex: hoje e os próximos 3 dias)
+        const checkDates = [0, 1, 2, 3].map(days => {
+          const d = new Date(today);
+          d.setDate(d.getDate() + days);
+          return d.toISOString().split("T")[0];
+        });
+
         const { data: items } = await supabase
           .from("items")
           .select("id, text, due_date")
-          .in("due_date", targetDates)
+          .in("due_date", checkDates)
+          .eq("created_by", pref.user_id);
 
-        if (items) {
-          for (const item of items) {
-            // VERIFICAÇÃO: Se já foi concluída, não envia como pendente
-            if (doneItemIds.has(item.id)) {
-              console.log(`IGNORANDO PENDENTE: "${item.text}" já está concluída.`);
-              continue;
-            }
-
-            try {
-              const dateFmt = new Date(item.due_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
-              await transporter.sendMail({
-                from: FROM_EMAIL,
-                to: userEmail,
-                subject: `[3emtuff] Pendente: ${item.text}`,
-                html: `<div style="font-family: sans-serif;"><h2>Olá, ${displayName}</h2><p>Lembrete de atividade pendente: <strong>${item.text}</strong></p><p>Data: ${dateFmt}</p></div>`
-              });
-              totalSent++;
-              console.log(`SUCESSO: Pendente enviado -> ${userEmail}`);
-              await new Promise(r => setTimeout(r, 400)); // Delay para o Gmail
-            } catch (err) {
-              console.error(`ERRO Pendente ${userEmail}:`, err);
-            }
-          }
-        }
+        items?.forEach(item => {
+          if (doneItemIds.has(item.id)) return; // Pula se já concluiu
+          
+          if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
+          agendaAgrupada[item.due_date].push({ 
+            text: item.text, 
+            status: "⏳ Pendente, não se esqueça!" 
+          });
+        });
       }
 
-      // 3. LOGICA DE CONCLUÍDOS
-      if (pref.concluded_enabled && doneTasks) {
-        const targetDatesConc = buildTargetDates(today, pref.concluded_schedule || []);
-        for (const task of doneTasks) {
-          if (!task.done_at || !task.items) continue;
-          const doneDate = task.done_at.split("T")[0];
+      // 3. MONTAR O CORPO DO E-MAIL SE HOUVER ATIVIDADES
+      const datasOrdenadas = Object.keys(agendaAgrupada).sort();
 
-          if (targetDatesConc.includes(doneDate)) {
-            try {
-              const itemText = (task.items as any)?.text || "Tarefa s/ nome";
-              const dateFmt = new Date(doneDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
+      if (datasOrdenadas.length > 0) {
+        let htmlContent = `<h2>Olá, ${profile.display_name || profile.name}!</h2>`;
+        htmlContent += `<p>Aqui está o resumo das suas atividades para os próximos dias:</p>`;
 
-              await transporter.sendMail({
-                from: FROM_EMAIL,
-                to: userEmail,
-                subject: `[3emtuff] Concluída: ${itemText}`,
-                html: `<div style="font-family: sans-serif;"><h2>Olá, ${displayName}</h2><p>Atividade concluída: <strong>${itemText}</strong></p><p>Data: ${dateFmt}</p></div>`
-              });
-              totalSent++;
-              console.log(`SUCESSO: Concluída enviada -> ${userEmail}`);
-              await new Promise(r => setTimeout(r, 400));
-            } catch (err) {
-              console.error(`ERRO Concluída ${userEmail}:`, err);
-            }
-          }
+        for (const data of datasOrdenadas) {
+          htmlContent += `<div style="margin-bottom: 20px;">`;
+          htmlContent += `<h3 style="color: #4a90e2; border-bottom: 1px solid #eee;">${formatDateBr(data)}</h3>`;
+          htmlContent += `<ul style="list-style: none; padding: 0;">`;
+          
+          agendaAgrupada[data].forEach(task => {
+            htmlContent += `<li style="margin-bottom: 8px;"><strong>${task.text}</strong> - <small>${task.status}</small></li>`;
+          });
+
+          htmlContent += `</ul></div>`;
+        }
+
+        htmlContent += `<hr/><p style="font-size: 12px; color: #888;">Enviado por 3emtuff</p>`;
+
+        try {
+          await transporter.sendMail({
+            from: `3emtuff <${process.env.GMAIL_USER}>`,
+            to: profile.email,
+            subject: `[3emtuff] Seu resumo de atividades`,
+            html: htmlContent
+          });
+          emailsSentCount++;
+          console.log(`Resumo enviado para: ${profile.email}`);
+          await new Promise(r => setTimeout(r, 500)); // Delay preventivo
+        } catch (e) {
+          console.error(`Erro ao enviar resumo para ${profile.email}:`, e);
         }
       }
     }
 
-    console.log(`=== FIM DO PROCESSO. TOTAL ENVIADO: ${totalSent} ===`);
-    return NextResponse.json({ success: true, sent: totalSent });
-
+    return NextResponse.json({ success: true, emailsSent: emailsSentCount });
   } catch (err) {
-    console.error("ERRO CRÍTICO:", err);
-    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+    console.error(err);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
