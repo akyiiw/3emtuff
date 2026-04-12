@@ -59,6 +59,8 @@ export async function GET(req: NextRequest) {
       const profile = profileMap.get(pref.user_id);
       if (!profile?.email) continue;
 
+      console.log(`[Cron Reminders] Processando usuário ${profile.email} (Concluded: ${pref.concluded_enabled}, Pending: ${pref.pending_enabled})`);
+
       const agendaAgrupada: Record<string, { text: string; status: string; color: string; bg: string; link?: string; timestamp: number }[]> = {};
 
       // --- 1. BUSCAR CONCLUÍDOS (APENAS DESTE USUÁRIO) ---
@@ -74,6 +76,8 @@ export async function GET(req: NextRequest) {
           .select(`item_id, done_at, items ( text, subject_id )`)
           .eq("user_id", pref.user_id) // MUDANÇA CRUCIAL: Filtra para mostrar apenas o que EU fiz
           .in("done_at_date_only", targetDatesDone);
+
+        console.log(`[Cron Reminders] Concluídos para ${profile.email}: ${doneTasks?.length ?? 0} itens (Datas: ${targetDatesDone.join(", ")})`);
 
         if (doneTasks) {
           for (const task of doneTasks) {
@@ -115,6 +119,8 @@ export async function GET(req: NextRequest) {
           .select("id, text, due_date, created_at, subject_id")
           .in("due_date", targetDatesPending);
 
+        console.log(`[Cron Reminders] Pendentes para ${profile.email}: ${items?.length ?? 0} itens (Datas: ${targetDatesPending.join(", ")})`);
+
         const { data: userDone } = await supabase.from("task_done").select("item_id").eq("user_id", pref.user_id);
         const doneIds = new Set(userDone?.map(d => d.item_id));
 
@@ -144,6 +150,10 @@ export async function GET(req: NextRequest) {
 
       // --- 3. MONTAGEM DO HTML COM ORDEM INVERSA ---
       const datasOrdenadas = Object.keys(agendaAgrupada).sort();
+
+      if (datasOrdenadas.length === 0) {
+        console.log(`[Cron Reminders] Agenda vazia para ${profile.email}`);
+      }
 
       if (datasOrdenadas.length > 0) {
         let agendaHtml = "";
