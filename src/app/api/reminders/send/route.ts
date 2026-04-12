@@ -159,9 +159,21 @@ export async function GET(req: NextRequest) {
         let agendaHtml = "";
         
         for (const data of datasOrdenadas) {
-          const isToday = data === today.toISOString().split("T")[0];
-          const dateLabel = isToday ? "Hoje" : formatDateBr(data);
-          
+          const todayStr = today.toISOString().split("T")[0];
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const tomorrowStr = tomorrow.toISOString().split("T")[0];
+          const dayAfter = new Date(today);
+          dayAfter.setDate(dayAfter.getDate() + 2);
+          const dayAfterStr = dayAfter.toISOString().split("T")[0];
+
+          let dateLabel = formatDateBr(data);
+          if (data === todayStr) dateLabel = "Hoje";
+          else if (data === tomorrowStr) dateLabel = "Amanhã";
+          else if (data === dayAfterStr) dateLabel = "Depois de Amanhã";
+
+          const isToday = data === todayStr;
+
           // Inverter a ordem dos itens dentro de cada dia (mais recentes primeiro)
           const itensOrdenados = agendaAgrupada[data].sort((a, b) => b.timestamp - a.timestamp);
 
@@ -178,16 +190,18 @@ export async function GET(req: NextRequest) {
                   <div style="font-size: 14px; color: #18181b; font-weight: 500;">${task.text}</div>
                   <a href="${BASE_URL}${task.link}" style="font-size: 12px; color: #6366f1; text-decoration: none;">Ver detalhes &rarr;</a>
                 </td>
-                <td style="padding: 10px 0; white-space: nowrap; font-size: 12px; color: #9ca3af; text-align: right; vertical-align: top;">
-                  ${dateLabel}
-                </td>
               </tr>`;
           });
 
           agendaHtml += `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
-              ${rows}
-            </table>`;
+            <div style="margin-top: 24px; margin-bottom: 12px;">
+              <div style="font-size: 12px; font-weight: 700; color: ${isToday ? '#ef4444' : '#71717a'}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+                ${dateLabel}
+              </div>
+              <table style="width: 100%; border-collapse: collapse;">
+                ${rows}
+              </table>
+            </div>`;
         }
 
         const emailHtml = `
