@@ -24,6 +24,11 @@ function formatDateBr(dateStr: string) {
   });
 }
 
+function formatDateSimple(dateStr: string) {
+  const [year, month, day] = dateStr.split("-");
+  return `${day}/${month}`;
+}
+
 export async function GET(req: NextRequest) {
   console.log("=== [Cron Reminders] Iniciando processo de envio ===");
 
@@ -91,12 +96,15 @@ export async function GET(req: NextRequest) {
               const emoji = subj?.emoji ?? "📚";
               const text = itemData?.text ?? "Atividade";
 
+              // Identificação do tipo (se disponível no itemData)
+              const typeLabel = (itemData as any)?.type === "exam" ? "Prova" : (itemData as any)?.type === "work" ? "Trabalho" : (itemData as any)?.type === "presentation" ? "Apresentação" : "Atividade";
+
               agendaAgrupada[date].push({
-                text: `${emoji} ${text}`,
+                text: `${emoji} [${typeLabel}] ${text}`,
                 status: "Concluída",
                 color: "#10b981",
                 bg: "#ecfdf5",
-                link: "/atividades",
+                link: `/dashboard/${itemData?.subject_id}?item=${task.item_id}`,
                 timestamp: new Date(task.done_at).getTime()
               });
             } catch (e) {
@@ -116,7 +124,7 @@ export async function GET(req: NextRequest) {
 
         const { data: items } = await supabase
           .from("items")
-          .select("id, text, due_date, created_at, subject_id")
+          .select("id, text, due_date, created_at, subject_id, type")
           .in("due_date", targetDatesPending);
 
         console.log(`[Cron Reminders] Pendentes para ${profile.email}: ${items?.length ?? 0} itens (Datas: ${targetDatesPending.join(", ")})`);
@@ -132,13 +140,14 @@ export async function GET(req: NextRequest) {
 
               const subj = getSubject(item.subject_id);
               const emoji = subj?.emoji ?? "📚";
+              const typeLabel = item.type === "exam" ? "Prova" : item.type === "work" ? "Trabalho" : item.type === "presentation" ? "Apresentação" : "Atividade";
 
               agendaAgrupada[item.due_date].push({
-                text: `${emoji} ${item.text}`,
+                text: `${emoji} [${typeLabel}] ${item.text}`,
                 status: isDone ? "Concluída" : "Pendente",
                 color: isDone ? "#10b981" : "#6b7280",
                 bg: isDone ? "#ecfdf5" : "#f3f4f6",
-                link: "/atividades",
+                link: `/dashboard/${item.subject_id}?item=${item.id}`,
                 timestamp: new Date(item.created_at).getTime()
               });
             } catch (e) {
@@ -167,10 +176,11 @@ export async function GET(req: NextRequest) {
           dayAfter.setDate(dayAfter.getDate() + 2);
           const dayAfterStr = dayAfter.toISOString().split("T")[0];
 
-          let dateLabel = formatDateBr(data);
-          if (data === todayStr) dateLabel = "Hoje";
-          else if (data === tomorrowStr) dateLabel = "Amanhã";
-          else if (data === dayAfterStr) dateLabel = "Depois de Amanhã";
+          const simpleDate = formatDateSimple(data);
+          let dateLabel = `${formatDateBr(data)} (${simpleDate})`;
+          if (data === todayStr) dateLabel = `Hoje (${simpleDate})`;
+          else if (data === tomorrowStr) dateLabel = `Amanhã (${simpleDate})`;
+          else if (data === dayAfterStr) dateLabel = `Depois de Amanhã (${simpleDate})`;
 
           const isToday = data === todayStr;
 
@@ -179,29 +189,10 @@ export async function GET(req: NextRequest) {
 
           let rows = "";
           itensOrdenados.forEach(task => {
-            rows += `
-              <tr>
-                <td style="padding: 10px 0; vertical-align: top; width: 100px;">
-                  <span style="display: inline-block; padding: 2px 8px; background: ${task.bg}; border-radius: 4px; font-size: 11px; color: ${task.color}; font-weight: 600;">
-                    ${task.status}
-                  </span>
-                </td>
-                <td style="padding: 10px 0;">
-                  <div style="font-size: 14px; color: #18181b; font-weight: 500;">${task.text}</div>
-                  <a href="${BASE_URL}${task.link}" style="font-size: 12px; color: #6366f1; text-decoration: none;">Ver detalhes &rarr;</a>
-                </td>
-              </tr>`;
+            rows += `<tr><td style="padding:10px 0;vertical-align:top;width:100px;"><span style="display:inline-block;padding:2px 8px;background:${task.bg};border-radius:4px;font-size:11px;color:${task.color};font-weight:600;">${task.status}</span></td><td style="padding:10px 0;"><div style="font-size:14px;color:#18181b;font-weight:500;">${task.text}</div><a href="${BASE_URL}${task.link}" style="font-size:12px;color:#6366f1;text-decoration:none;">Ver detalhes &rarr;</a></td></tr>`;
           });
 
-          agendaHtml += `
-            <div style="margin-top: 24px; margin-bottom: 12px;">
-              <div style="font-size: 12px; font-weight: 700; color: ${isToday ? '#ef4444' : '#71717a'}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
-                ${dateLabel}
-              </div>
-              <table style="width: 100%; border-collapse: collapse;">
-                ${rows}
-              </table>
-            </div>`;
+          agendaHtml += `<div style="margin-top:24px;margin-bottom:12px;"><div style="font-size:12px;font-weight:700;color:${isToday ? '#ef4444' : '#71717a'};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">${dateLabel}</div><table style="width:100%;border-collapse:collapse;">${rows}</table></div>`;
         }
 
         const emailHtml = `
