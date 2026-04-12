@@ -19,12 +19,12 @@ export const getAdminClient = () => {
 function formatDateBr(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("pt-BR", {
     day: "2-digit",
-    month: "long",
+    month: "short",
   });
 }
 
 export async function GET(req: NextRequest) {
-  console.log("=== INICIANDO ENVIO DE RESUMO ESTILIZADO ===");
+  console.log("=== INICIANDO ENVIO DE RESUMO ESTILO NOTIFY ===");
 
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       const profile = profileMap.get(pref.user_id);
       if (!profile?.email) continue;
 
-      const agendaAgrupada: Record<string, { text: string; status: string; color: string; bg: string }[]> = {};
+      const agendaAgrupada: Record<string, { text: string; status: string; color: string; bg: string; link?: string }[]> = {};
 
       // --- 1. BUSCAR CONCLUÍDOS ---
       if (pref.concluded_enabled) {
@@ -77,8 +77,9 @@ export async function GET(req: NextRequest) {
           agendaAgrupada[date].push({ 
             text: (task.items as any).text, 
             status: "Concluída",
-            color: "#10b981", // Verde
-            bg: "#ecfdf5"
+            color: "#10b981",
+            bg: "#ecfdf5",
+            link: "/atividades" // Link padrão ou específico se tiver
           });
         });
       }
@@ -105,62 +106,67 @@ export async function GET(req: NextRequest) {
           agendaAgrupada[item.due_date].push({ 
             text: item.text, 
             status: "Pendente",
-            color: "#f59e0b", // Laranja/Amarelo
-            bg: "#fffbeb"
+            color: "#6b7280", // Cinza como no label original
+            bg: "#f3f4f6",
+            link: "/atividades"
           });
         });
       }
 
-      // --- 3. MONTAGEM DO HTML ESTILO "EMBED" ---
+      // --- 3. MONTAGEM DO HTML ESTILO NOTIFY-SEND ---
       const datasOrdenadas = Object.keys(agendaAgrupada).sort();
 
       if (datasOrdenadas.length > 0) {
         let agendaHtml = "";
         
         for (const data of datasOrdenadas) {
+          const isToday = data === today.toISOString().split("T")[0];
+          const dateLabel = isToday ? "Hoje" : formatDateBr(data);
           let rows = "";
+
           agendaAgrupada[data].forEach(task => {
             rows += `
               <tr>
-                <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5;">
-                  <span style="display: inline-block; padding: 2px 8px; background: ${task.bg}; border-radius: 4px; font-size: 11px; color: ${task.color}; font-weight: 600; margin-bottom: 4px;">
-                    ${task.status.toUpperCase()}
+                <td style="padding: 8px 0; vertical-align: top; width: 80px;">
+                  <span style="display: inline-block; padding: 2px 8px; background: ${task.bg}; border-radius: 4px; font-size: 11px; color: ${task.color}; font-weight: 600;">
+                    ${task.status}
                   </span>
-                  <div style="font-size: 15px; color: #18181b; font-weight: 500;">${task.text}</div>
+                </td>
+                <td style="padding: 8px 0;">
+                  <div style="font-size: 14px; color: #18181b; font-weight: 500;">${task.text}</div>
+                  <a href="${BASE_URL}${task.link}" style="font-size: 12px; color: #6366f1; text-decoration: none;">Ver detalhes &rarr;</a>
+                </td>
+                <td style="padding: 8px 0; white-space: nowrap; font-size: 12px; color: #9ca3af; text-align: right; vertical-align: top;">
+                  ${dateLabel}
                 </td>
               </tr>`;
           });
 
           agendaHtml += `
-            <div style="margin-top: 24px;">
-              <div style="font-size: 13px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
-                ${data === today.toISOString().split("T")[0] ? "Hoje" : formatDateBr(data)}
-              </div>
-              <table style="width: 100%; border-collapse: collapse;">
-                ${rows}
-              </table>
-            </div>`;
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+              ${rows}
+            </table>`;
         }
 
         const emailHtml = `
           <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 12px;">
-            <h2 style="margin: 0; color: #18181b; font-size: 24px; text-align: center;">
+            <h2 style="margin-top: 0; color: #18181b; font-size: 20px; text-align: center;">
               Bom dia, ${profile.display_name || profile.name}!
             </h2>
-            <p style="color: #52525b; text-align: center; font-size: 16px; margin-top: 8px;">
-              Aqui está sua agenda para os próximos dias no EPC.
+            <p style="color: #3f3f46; text-align: center; margin-bottom: 24px;">
+              Aqui está o resumo das suas atividades no 3emtuff:
             </p>
-            <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-              ${agendaHtml}
-            </table>
-            <div style="text-align: center; margin-top: 24px;">
+
+            ${agendaHtml}
+
+            <div style="text-align: center; margin-top: 24px; border-top: 1px solid #f4f4f5; padding-top: 24px;">
               <a href="${BASE_URL}"
-                style="display: inline-block; padding: 10px 24px; background: #18181b; color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
-                Ver todas no 3emtuff
+                 style="display: inline-block; padding: 10px 24px; background: #18181b; color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+                Abrir Painel Completo
               </a>
             </div>
             <p style="color: #a1a1aa; font-size: 12px; margin-top: 24px; text-align: center;">
-              Você está recebendo este e-mail porque tem notificações pendentes no 3emtuff.
+              Este é um lembrete automático baseado nas suas preferências.
             </p>
           </div>`;
 
@@ -168,7 +174,7 @@ export async function GET(req: NextRequest) {
           await transporter.sendMail({
             from: `3emtuff <${process.env.GMAIL_USER}>`,
             to: profile.email,
-            subject: `Resumo de Atividades - ${formatDateBr(today.toISOString().split("T")[0])}`,
+            subject: `[3emtuff] Resumo de Atividades`,
             html: emailHtml,
           });
           emailsSentCount++;
