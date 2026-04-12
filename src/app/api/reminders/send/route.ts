@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const CRON_SECRET = process.env.CRON_SECRET;
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://3emtuff.vercel.app";
 
 export const getAdminClient = () => {
   return createClient(
@@ -23,7 +24,7 @@ function formatDateBr(dateStr: string) {
 }
 
 export async function GET(req: NextRequest) {
-  console.log("=== INICIANDO ENVIO DE RESUMO PERSONALIZADO ===");
+  console.log("=== INICIANDO ENVIO DE RESUMO ESTILIZADO ===");
 
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
@@ -54,9 +55,9 @@ export async function GET(req: NextRequest) {
       const profile = profileMap.get(pref.user_id);
       if (!profile?.email) continue;
 
-      const agendaAgrupada: Record<string, { text: string; status: string }[]> = {};
+      const agendaAgrupada: Record<string, { text: string; status: string; color: string; bg: string }[]> = {};
 
-      // --- 1. BUSCAR CONCLUÍDOS (BASEADO NA AGENDA DO USUÁRIO) ---
+      // --- 1. BUSCAR CONCLUÍDOS ---
       if (pref.concluded_enabled) {
         const targetDatesDone = (pref.concluded_schedule || []).map((days: number) => {
           const d = new Date(today);
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
         const { data: doneTasks } = await supabase
           .from("task_done")
           .select(`item_id, done_at, items ( text )`)
-          .in("done_at_date_only", targetDatesDone); // Assumindo que você filtra pela data
+          .in("done_at_date_only", targetDatesDone);
 
         doneTasks?.forEach(task => {
           if (!task.done_at || !task.items) return;
@@ -75,12 +76,14 @@ export async function GET(req: NextRequest) {
           if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
           agendaAgrupada[date].push({ 
             text: (task.items as any).text, 
-            status: "✅ Concluída" 
+            status: "Concluída",
+            color: "#10b981", // Verde
+            bg: "#ecfdf5"
           });
         });
       }
 
-      // --- 2. BUSCAR PENDENTES (BASEADO NA AGENDA DO USUÁRIO) ---
+      // --- 2. BUSCAR PENDENTES ---
       if (pref.pending_enabled) {
         const targetDatesPending = (pref.pending_schedule || []).map((days: number) => {
           const d = new Date(today);
@@ -88,60 +91,98 @@ export async function GET(req: NextRequest) {
           return d.toISOString().split("T")[0];
         });
 
-        // Buscamos TODOS os itens nas datas de interesse desse usuário (sem filtro de created_by)
         const { data: items } = await supabase
           .from("items")
           .select("id, text, due_date")
           .in("due_date", targetDatesPending);
 
-        // Precisamos saber o que ESTE usuário já concluiu para não mostrar como pendente
-        const { data: userDone } = await supabase
-          .from("task_done")
-          .select("item_id")
-          .eq("user_id", pref.user_id);
-        
+        const { data: userDone } = await supabase.from("task_done").select("item_id").eq("user_id", pref.user_id);
         const doneIds = new Set(userDone?.map(d => d.item_id));
 
         items?.forEach(item => {
           if (doneIds.has(item.id)) return;
-          
           if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
           agendaAgrupada[item.due_date].push({ 
             text: item.text, 
-            status: "⏳ Pendente" 
+            status: "Pendente",
+            color: "#f59e0b", // Laranja/Amarelo
+            bg: "#fffbeb"
           });
         });
       }
 
-      // --- 3. ENVIO DO E-MAIL ---
+      // --- 3. MONTAGEM DO HTML ESTILO "EMBED" ---
       const datasOrdenadas = Object.keys(agendaAgrupada).sort();
 
       if (datasOrdenadas.length > 0) {
-        let htmlContent = `<h2>Bom dia, ${profile.display_name || profile.name}!</h2>`;
-        htmlContent += `<p>Aqui está o resumo das atividades coletivas baseado nos seus filtros:</p>`;
-
+        let agendaHtml = "";
+        
         for (const data of datasOrdenadas) {
-          htmlContent += `<div style="margin-bottom: 20px;">`;
-          htmlContent += `<h3 style="color: #4a90e2; border-bottom: 1px solid #eee;">${formatDateBr(data)}</h3>`;
-          htmlContent += `<ul style="list-style: none; padding: 0;">`;
+          let rows = "";
           agendaAgrupada[data].forEach(task => {
-            htmlContent += `<li style="margin-bottom: 8px;"><strong>${task.text}</strong> - <small>${task.status}</small></li>`;
+            rows += `
+              <tr>
+                <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5;">
+                  <span style="display: inline-block; padding: 2px 8px; background: ${task.bg}; border-radius: 4px; font-size: 11px; color: ${task.color}; font-weight: 600; margin-bottom: 4px;">
+                    ${task.status.toUpperCase()}
+                  </span>
+                  <div style="font-size: 15px; color: #18181b; font-weight: 500;">${task.text}</div>
+                </td>
+              </tr>`;
           });
-          htmlContent += `</ul></div>`;
+
+          agendaHtml += `
+            <div style="margin-top: 24px;">
+              <div style="font-size: 13px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+                ${data === today.toISOString().split("T")[0] ? "Hoje" : formatDateBr(data)}
+              </div>
+              <table style="width: 100%; border-collapse: collapse;">
+                ${rows}
+              </table>
+            </div>`;
         }
+
+        const emailHtml = `
+          <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 16px;">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <span style="background: #f4f4f5; padding: 6px 12px; border-radius: 20px; font-size: 12px; color: #71717a; font-weight: 500;">
+                📅 Resumo Diário
+              </span>
+            </div>
+            
+            <h2 style="margin: 0; color: #18181b; font-size: 24px; text-align: center;">
+              Olá, ${profile.display_name || profile.name}!
+            </h2>
+            <p style="color: #52525b; text-align: center; font-size: 16px; margin-top: 8px;">
+              Aqui está sua agenda coletiva para os próximos dias no <strong>3emtuff</strong>.
+            </p>
+
+            ${agendaHtml}
+
+            <div style="text-align: center; margin-top: 32px;">
+              <a href="${BASE_URL}" 
+                 style="display: inline-block; padding: 12px 28px; background: #18181b; color: #ffffff; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 15px;">
+                Abrir Painel Completo
+              </a>
+            </div>
+            
+            <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px; text-align: center; line-height: 1.5;">
+              Você está recebendo este resumo com base nas suas preferências de lembretes.<br>
+              © 2026 3emtuff.
+            </p>
+          </div>`;
 
         try {
           await transporter.sendMail({
             from: `3emtuff <${process.env.GMAIL_USER}>`,
             to: profile.email,
-            subject: `[3emtuff] Resumo do dia: ${formatDateBr(today.toISOString().split("T")[0])}`,
-            html: htmlContent
+            subject: `[3emtuff] Resumo de Atividades - ${formatDateBr(today.toISOString().split("T")[0])}`,
+            html: emailHtml,
           });
           emailsSentCount++;
-          console.log(`Resumo enviado: ${profile.email}`);
           await new Promise(r => setTimeout(r, 400));
         } catch (e) {
-          console.error(`Erro no e-mail de ${profile.email}:`, e);
+          console.error(`Erro:`, e);
         }
       }
     }

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "3EMTuff",
-  description: "Painel organizador de tarefas e trabalhos escolares",
+  title: "3emtuff",
+  description: "bem vin",
 };
 
 export default function RootLayout({
