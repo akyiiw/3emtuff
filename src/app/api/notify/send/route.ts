@@ -82,7 +82,6 @@ export async function POST(req: NextRequest) {
 
     // Filtramos para manter apenas o que não foi feito e ignorar avisos de "item_done"
     const filteredNotifs = allNotifs.filter(n => {
-      if (n.type === "item_done") return false; // Remove notificações de conclusão
       if (n.item_id && doneIds.has(n.item_id)) return false; // Remove se a tarefa já está na task_done
       return true;
     });

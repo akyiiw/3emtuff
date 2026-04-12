@@ -46,6 +46,7 @@ export async function broadcastNotification(
 
 export async function notifyTaskDone(
   excludeUserId: string,
+  userName: string,
   itemId: string,
   itemText: string,
   subjectId: string
@@ -58,7 +59,7 @@ export async function notifyTaskDone(
   await broadcastNotification(
     excludeUserId,
     "item_done",
-    `${emoji} ${itemText} concluída!`,
+    `${emoji} ${userName} concluiu: ${itemText}`,
     `${label}`,
     `/dashboard/${subjectId}?item=${itemId}`
   );

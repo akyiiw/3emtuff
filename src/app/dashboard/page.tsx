@@ -127,7 +127,8 @@ export default function DashboardPage() {
       await supabase.from("task_done").insert({ item_id: itemId, user_id: currentUser });
       // Notify others that this task was completed
       const { notifyTaskDone } = await import("@/lib/notifications");
-      await notifyTaskDone(currentUser, item.id, item.text, item.subject_id);
+      const name = profileCache.get(currentUser) ?? "Alguém";
+      await notifyTaskDone(currentUser, name, item.id, item.text, item.subject_id);
     }
     loadItems();
   }
