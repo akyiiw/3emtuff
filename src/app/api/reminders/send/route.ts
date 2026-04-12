@@ -24,7 +24,7 @@ function formatDateBr(dateStr: string) {
 }
 
 export async function GET(req: NextRequest) {
-  console.log("=== INICIANDO ENVIO DE RESUMO ESTILO NOTIFY ===");
+  console.log("=== INICIANDO ENVIO DE RESUMO (CONCLUÍDOS PRIVADOS) ===");
 
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
@@ -55,9 +55,9 @@ export async function GET(req: NextRequest) {
       const profile = profileMap.get(pref.user_id);
       if (!profile?.email) continue;
 
-      const agendaAgrupada: Record<string, { text: string; status: string; color: string; bg: string; link?: string }[]> = {};
+      const agendaAgrupada: Record<string, { text: string; status: string; color: string; bg: string; link?: string; timestamp: number }[]> = {};
 
-      // --- 1. BUSCAR CONCLUÍDOS ---
+      // --- 1. BUSCAR CONCLUÍDOS (APENAS DESTE USUÁRIO) ---
       if (pref.concluded_enabled) {
         const targetDatesDone = (pref.concluded_schedule || []).map((days: number) => {
           const d = new Date(today);
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         const { data: doneTasks } = await supabase
           .from("task_done")
           .select(`item_id, done_at, items ( text )`)
-          .eq("user_id", pref.user_id)
+          .eq("user_id", pref.user_id) // MUDANÇA CRUCIAL: Filtra para mostrar apenas o que EU fiz
           .in("done_at_date_only", targetDatesDone);
 
         doneTasks?.forEach(task => {
@@ -80,12 +80,13 @@ export async function GET(req: NextRequest) {
             status: "Concluída",
             color: "#10b981",
             bg: "#ecfdf5",
-            link: "/atividades" // Link padrão ou específico se tiver
+            link: "/atividades",
+            timestamp: new Date(task.done_at).getTime()
           });
         });
       }
 
-      // --- 2. BUSCAR PENDENTES ---
+      // --- 2. BUSCAR PENDENTES (COLETIVO, MAS FILTRANDO O QUE O USER JÁ FEZ) ---
       if (pref.pending_enabled) {
         const targetDatesPending = (pref.pending_schedule || []).map((days: number) => {
           const d = new Date(today);
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
 
         const { data: items } = await supabase
           .from("items")
-          .select("id, text, due_date")
+          .select("id, text, due_date, created_at")
           .in("due_date", targetDatesPending);
 
         const { data: userDone } = await supabase.from("task_done").select("item_id").eq("user_id", pref.user_id);
@@ -107,14 +108,15 @@ export async function GET(req: NextRequest) {
           agendaAgrupada[item.due_date].push({ 
             text: item.text, 
             status: "Pendente",
-            color: "#6b7280", // Cinza como no label original
+            color: "#6b7280",
             bg: "#f3f4f6",
-            link: "/atividades"
+            link: "/atividades",
+            timestamp: new Date(item.created_at).getTime()
           });
         });
       }
 
-      // --- 3. MONTAGEM DO HTML ESTILO NOTIFY-SEND ---
+      // --- 3. MONTAGEM DO HTML COM ORDEM INVERSA ---
       const datasOrdenadas = Object.keys(agendaAgrupada).sort();
 
       if (datasOrdenadas.length > 0) {
@@ -123,9 +125,12 @@ export async function GET(req: NextRequest) {
         for (const data of datasOrdenadas) {
           const isToday = data === today.toISOString().split("T")[0];
           const dateLabel = isToday ? "Hoje" : formatDateBr(data);
-          let rows = "";
+          
+          // Inverter a ordem dos itens dentro de cada dia (mais recentes primeiro)
+          const itensOrdenados = agendaAgrupada[data].sort((a, b) => b.timestamp - a.timestamp);
 
-          agendaAgrupada[data].forEach(task => {
+          let rows = "";
+          itensOrdenados.forEach(task => {
             rows += `
               <tr>
                 <td style="padding: 8px 0; vertical-align: top; width: 80px;">
@@ -155,7 +160,7 @@ export async function GET(req: NextRequest) {
               Bom dia, ${profile.display_name || profile.name}!
             </h2>
             <p style="color: #3f3f46; text-align: center; margin-bottom: 24px;">
-              Aqui está o resumo das suas atividades no 3emtuff:
+              Aqui está seu resumo de atividades no 3emtuff:
             </p>
 
             ${agendaHtml}
@@ -166,9 +171,6 @@ export async function GET(req: NextRequest) {
                 Abrir Painel Completo
               </a>
             </div>
-            <p style="color: #a1a1aa; font-size: 12px; margin-top: 24px; text-align: center;">
-              Este é um lembrete automático baseado nas suas preferências.
-            </p>
           </div>`;
 
         try {

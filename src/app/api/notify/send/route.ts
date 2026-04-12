@@ -3,7 +3,9 @@ import { sendEmail } from "@/lib/send-email";
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
-type NotifRow = Database["public"]["Tables"]["notifications"]["Row"];
+type NotifRow = Database["public"]["Tables"]["notifications"]["Row"] & {
+  item_id?: string | null;
+};
 
 const GMAIL_USER = process.env.GMAIL_USER;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://3emtuff.vercel.app";
@@ -14,77 +16,48 @@ const TYPE_LABELS: Record<string, string> = {
   new_forum_post: "Novo post no fórum",
   new_forum_comment: "Novo comentário no fórum",
   item_overdue: "Atividade atrasada",
-  item_done: "Tarefa concluída",
 };
 
-// Recebe webhook do Supabase com INSERT em notifications
 export async function POST(req: NextRequest) {
-  console.log("[notify-send] Received webhook request");
+  console.log("[notify-send] Webhook iniciado");
 
-  // Verificar secret do webhook (segurança)
+  // 1. Validação de Segurança
   const webhookSecret = process.env.WEBHOOK_SECRET;
   const authHeader = req.headers.get("authorization") || req.headers.get("x-webhook-secret");
 
   if (webhookSecret && authHeader !== `Bearer ${webhookSecret}` && authHeader !== webhookSecret) {
-    console.warn("[notify-send] Invalid webhook secret");
+    console.error("[notify-send] Secret inválido");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await req.json();
-    console.log("[notify-send] Webhook payload:", JSON.stringify(body).substring(0, 500));
-
-    // Supabase webhook envia { record: { user_id, type, title, body, link, ... } }
-    // Ou pode ser a notification diretamente se for triggerado manualmente
     const record = body.record ?? body;
-
-    if (!record?.user_id) {
-      console.warn("[notify-send] No user_id in record");
-      return NextResponse.json({ error: "No user_id in record" }, { status: 400 });
-    }
-
-    if (!GMAIL_USER) {
-      console.error("[notify-send] GMAIL_USER not configured");
-      return NextResponse.json({ error: "GMAIL_USER not configured" }, { status: 500 });
-    }
-
-    const supabase = getAdminClient();
     const userId = record.user_id as string;
 
-    // Primeiro, pegar email da auth.users usando admin getUserById
-    console.log(`[notify-send] Fetching user from auth.users for userId: ${userId}`);
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    if (!userId) return NextResponse.json({ error: "user_id ausente" }, { status: 400 });
+    if (!GMAIL_USER) return NextResponse.json({ error: "GMAIL_USER não configurado" }, { status: 500 });
 
-    if (authError || !authUser || !authUser.user?.email) {
-      console.warn(`[notify-send] User ${userId} has no email in auth.users`, authError);
-      return NextResponse.json({ skipped: "User has no email" });
+    const supabase = getAdminClient();
+
+    // 2. Buscar Dados do Usuário (E-mail e Perfil)
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    if (authError || !authUser?.user?.email) {
+      return NextResponse.json({ skipped: "Usuário sem e-mail" });
     }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name, display_name")
+      .eq("id", userId)
+      .single<Database["public"]["Tables"]["profiles"]["Row"]>();
 
     const email = authUser.user.email;
+    const displayName = profile?.display_name || profile?.name || email.split("@")[0];
 
-    // Pegar nome do perfil (se existir)
-    let displayName: string;
-    try {
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("name, display_name")
-        .eq("id", userId)
-        .single() as { data: { name: string; display_name: string } | null };
-
-      if (profileData) {
-        displayName = profileData.display_name || profileData.name || email.split("@")[0];
-      } else {
-        displayName = email.split("@")[0];
-      }
-    } catch {
-      displayName = email.split("@")[0];
-    }
-
-    console.log(`[notify-send] Sending notification email to: ${email} (${displayName})`);
-
-    // Pegar notificações recentes pra enviar todas de uma vez (batch)
+    // 3. Buscar Notificações Recentes (Últimas 2 horas)
     const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const { data: notifs } = await supabase
+    const { data: allNotifs } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", userId)
@@ -93,33 +66,52 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: false })
       .returns<NotifRow[]>();
 
-    if (!notifs || notifs.length === 0) {
-      console.log(`[notify-send] No unread notifications for ${userId}`);
-      return NextResponse.json({ skipped: "No unread notifications" });
+    if (!allNotifs || allNotifs.length === 0) {
+      return NextResponse.json({ skipped: "Sem notificações não lidas" });
     }
 
-    console.log(`[notify-send] Found ${notifs.length} unread notifications for ${userId}`);
+    // 4. FILTRO DE TAREFAS CONCLUÍDAS
+    // Buscamos o que esse usuário já marcou como feito
+    const { data: doneTasks } = await supabase
+      .from("task_done")
+      .select("item_id")
+      .eq("user_id", userId)
+      .returns<{ item_id: string }[]>();
 
-    // displayName já foi definido acima
+    const doneIds = new Set(doneTasks?.map(d => d.item_id) || []);
 
+    // Filtramos para manter apenas o que não foi feito e ignorar avisos de "item_done"
+    const filteredNotifs = allNotifs.filter(n => {
+      if (n.type === "item_done") return false; // Remove notificações de conclusão
+      if (n.item_id && doneIds.has(n.item_id)) return false; // Remove se a tarefa já está na task_done
+      return true;
+    });
+
+    if (filteredNotifs.length === 0) {
+      return NextResponse.json({ skipped: "Todas as tarefas já foram concluídas" });
+    }
+
+    // 5. Construção do HTML
     let notifRows = "";
-    for (const n of notifs) {
+    for (const n of filteredNotifs) {
       const label = TYPE_LABELS[n.type] ?? "Novidade";
-      const time = n.link
-        ? `<a href="${BASE_URL}${n.link}" style="color: #a5b4fc;">${new Date(n.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</a>`
-        : new Date(n.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+      const timeStr = new Date(n.created_at).toLocaleString("pt-BR", { 
+        day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" 
+      });
 
       notifRows += `
         <tr>
-          <td style="padding: 8px 0 8px 0; vertical-align: top;">
-            <span style="display: inline-block; padding: 2px 8px; background: #f3f4f6; border-radius: 4px; font-size: 11px; color: #6b7280; margin-right: 8px;">${label}</span>
+          <td style="padding: 10px 0; vertical-align: top; width: 100px;">
+            <span style="display: inline-block; padding: 2px 8px; background: #f3f4f6; border-radius: 4px; font-size: 11px; color: #6b7280; font-weight: 600;">
+              ${label.toUpperCase()}
+            </span>
           </td>
-          <td style="padding: 8px 0;">
-            <div style="font-size: 14px; color: #18181b; font-weight: 500;">${n.title}</div>
+          <td style="padding: 10px 0;">
+            <div style="font-size: 14px; color: #18181b; font-weight: 500; line-height: 1.4;">${n.title}</div>
             ${n.link ? `<a href="${BASE_URL}${n.link}" style="font-size: 12px; color: #6366f1; text-decoration: none;">Ver detalhes &rarr;</a>` : ""}
           </td>
-          <td style="padding: 8px 0; white-space: nowrap; font-size: 12px; color: #9ca3af; text-align: right; vertical-align: top;">
-            ${time}
+          <td style="padding: 10px 0; white-space: nowrap; font-size: 12px; color: #9ca3af; text-align: right; vertical-align: top;">
+            ${timeStr}
           </td>
         </tr>`;
     }
@@ -127,33 +119,31 @@ export async function POST(req: NextRequest) {
     const emailHtml = `
       <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e4e4e7; border-radius: 12px;">
         <h2 style="margin-top: 0; color: #18181b; font-size: 20px;">
-          Você tem ${notifs.length} notificaç${notifs.length > 1 ? "ões" : "ão"} pendente${notifs.length > 1 ? "s" : ""}
+          Você tem ${filteredNotifs.length} nova${filteredNotifs.length > 1 ? "s" : ""} pendênci${filteredNotifs.length > 1 ? "as" : "a"}
         </h2>
-        <p style="color: #3f3f46;">Olá, <strong>${displayName}</strong>! Aqui está o resumo recente do 3emtuff:</p>
+        <p style="color: #3f3f46;">Olá, <strong>${displayName}</strong>! Surgiram novidades recentes no 3emtuff:</p>
         <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
           ${notifRows}
         </table>
-        <div style="text-align: center; margin-top: 24px;">
-          <a href="${BASE_URL}"
-             style="display: inline-block; padding: 10px 24px; background: #18181b; color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
-            Ver todas no 3emtuff
+        <div style="text-align: center; margin-top: 24px; border-top: 1px solid #f4f4f5; padding-top: 24px;">
+          <a href="${BASE_URL}" style="display: inline-block; padding: 10px 24px; background: #18181b; color: #ffffff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+            Ver tudo no site
           </a>
         </div>
-        <p style="color: #a1a1aa; font-size: 12px; margin-top: 24px; text-align: center;">
-          Você está recebendo este e-mail porque tem notificações pendentes no 3emtuff.
-        </p>
       </div>`;
 
+    // 6. Enviar E-mail
     await sendEmail({
       to: email,
-      subject: `${notifs.length} notificaç${notifs.length > 1 ? "ões" : "ão"} pendente${notifs.length > 1 ? "s" : ""}`,
+      subject: `[3emtuff] ${filteredNotifs.length} nova${filteredNotifs.length > 1 ? "s" : ""} pendênci${filteredNotifs.length > 1 ? "as" : "a"}`,
       html: emailHtml,
     });
 
-    console.log(`[notify-send] Email sent successfully to ${email}`);
-    return NextResponse.json({ sent: notifs.length, to: email });
+    console.log(`[notify-send] Sucesso: ${filteredNotifs.length} notifs para ${email}`);
+    return NextResponse.json({ sent: filteredNotifs.length, to: email });
+
   } catch (err) {
-    console.error("[notify-send] Error:", err);
+    console.error("[notify-send] Erro fatal:", err);
     return NextResponse.json({ error: "Internal error", details: String(err) }, { status: 500 });
   }
 }
