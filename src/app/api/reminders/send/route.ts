@@ -31,7 +31,6 @@ function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
 export async function GET(req: NextRequest) {
   console.log("=== ROTA DE LEMBRETES ACESSADA ===");
 
-  // 1. Criamos o transporter dentro da função para garantir o acesso às ENVs
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
     port: Number(process.env.EMAIL_SERVER_PORT) || 587,
@@ -58,84 +57,84 @@ export async function GET(req: NextRequest) {
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) ?? []);
     let totalSent = 0;
 
-    console.log(`Iniciando processamento de ${prefs?.length ?? 0} preferências.`);
-
     for (const pref of (prefs ?? [])) {
       const profile = profileMap.get(pref.user_id);
-      
-      if (!profile?.email) {
-        console.log(`PULANDO: Usuário ${pref.user_id} não possui email.`);
-        continue;
-      }
+      if (!profile?.email) continue;
 
       const userEmail = profile.email;
       const displayName = profile.display_name || profile.name || userEmail.split("@")[0];
       const FROM_EMAIL = `3emtuff <${process.env.GMAIL_USER}>`;
 
-      // --- LOGICA DE PENDENTES ---
+      console.log(`-----------------------------------------`);
+      console.log(`PROCESSANDO: ${userEmail}`);
+
+      // 1. BUSCAR TAREFAS CONCLUÍDAS PRIMEIRO
+      const { data: doneTasks } = await supabase
+        .from("task_done")
+        .select(`item_id, done_at, items ( text )`)
+        .eq("user_id", pref.user_id);
+
+      // Criar um Set com os IDs das tarefas concluídas para exclusão mútua
+      const doneItemIds = new Set(doneTasks?.map(t => t.item_id) || []);
+
+      // 2. LOGICA DE PENDENTES (Só envia se não estiver no Set de concluídos)
       if (pref.pending_enabled) {
         const targetDates = buildTargetDates(today, pref.pending_schedule || []);
         const { data: items } = await supabase
           .from("items")
-          .select("text, due_date")
+          .select("id, text, due_date")
           .in("due_date", targetDates)
-          .eq("created_by", pref.user_id); // Importante: filtrar por usuário!
+          .eq("created_by", pref.user_id);
 
-        if (items && items.length > 0) {
-          console.log(`Encontrados ${items.length} pendentes para ${userEmail}`);
+        if (items) {
           for (const item of items) {
+            // VERIFICAÇÃO: Se já foi concluída, não envia como pendente
+            if (doneItemIds.has(item.id)) {
+              console.log(`IGNORANDO PENDENTE: "${item.text}" já está concluída.`);
+              continue;
+            }
+
             try {
-              const dateFormatted = new Date(item.due_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
-              
+              const dateFmt = new Date(item.due_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
               await transporter.sendMail({
                 from: FROM_EMAIL,
                 to: userEmail,
                 subject: `[3emtuff] Pendente: ${item.text}`,
-                html: `<div style="font-family: sans-serif;"><h2>Olá, ${displayName}</h2><p>Atividade pendente: <strong>${item.text}</strong></p><p>Data: ${dateFormatted}</p></div>`
+                html: `<div style="font-family: sans-serif;"><h2>Olá, ${displayName}</h2><p>Lembrete de atividade pendente: <strong>${item.text}</strong></p><p>Data: ${dateFmt}</p></div>`
               });
-              
               totalSent++;
-              console.log(`SUCESSO: E-mail pendente enviado para ${userEmail}`);
-              // Pequena pausa para o Gmail não bloquear
-              await new Promise(r => setTimeout(r, 300));
+              console.log(`SUCESSO: Pendente enviado -> ${userEmail}`);
+              await new Promise(r => setTimeout(r, 400)); // Delay para o Gmail
             } catch (err) {
-              console.error(`ERRO no envio pendente para ${userEmail}:`, err);
+              console.error(`ERRO Pendente ${userEmail}:`, err);
             }
           }
         }
       }
 
-      // --- LOGICA DE CONCLUÍDOS ---
-      if (pref.concluded_enabled) {
-        const targetDates = buildTargetDates(today, pref.concluded_schedule || []);
-        const { data: doneTasks } = await supabase
-          .from("task_done")
-          .select(`done_at, items ( text )`)
-          .eq("user_id", pref.user_id);
+      // 3. LOGICA DE CONCLUÍDOS
+      if (pref.concluded_enabled && doneTasks) {
+        const targetDatesConc = buildTargetDates(today, pref.concluded_schedule || []);
+        for (const task of doneTasks) {
+          if (!task.done_at || !task.items) continue;
+          const doneDate = task.done_at.split("T")[0];
 
-        if (doneTasks) {
-          for (const task of doneTasks) {
-            if (!task.done_at || !task.items) continue;
-            const doneDate = task.done_at.split("T")[0];
-            
-            if (targetDates.includes(doneDate)) {
-              try {
-                const itemText = (task.items as any)?.text || "Tarefa s/ nome";
-                const dateFormatted = new Date(doneDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
+          if (targetDatesConc.includes(doneDate)) {
+            try {
+              const itemText = (task.items as any)?.text || "Tarefa s/ nome";
+              const dateFmt = new Date(doneDate + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
 
-                await transporter.sendMail({
-                  from: FROM_EMAIL,
-                  to: userEmail,
-                  subject: `[3emtuff] Concluída: ${itemText}`,
-                  html: `<div style="font-family: sans-serif;"><h2>Olá, ${displayName}</h2><p>Atividade concluída: <strong>${itemText}</strong></p><p>Data: ${dateFormatted}</p></div>`
-                });
-
-                totalSent++;
-                console.log(`SUCESSO: E-mail concluído enviado para ${userEmail}`);
-                await new Promise(r => setTimeout(r, 300));
-              } catch (err) {
-                console.error(`ERRO no envio concluído para ${userEmail}:`, err);
-              }
+              await transporter.sendMail({
+                from: FROM_EMAIL,
+                to: userEmail,
+                subject: `[3emtuff] Concluída: ${itemText}`,
+                html: `<div style="font-family: sans-serif;"><h2>Olá, ${displayName}</h2><p>Atividade concluída: <strong>${itemText}</strong></p><p>Data: ${dateFmt}</p></div>`
+              });
+              totalSent++;
+              console.log(`SUCESSO: Concluída enviada -> ${userEmail}`);
+              await new Promise(r => setTimeout(r, 400));
+            } catch (err) {
+              console.error(`ERRO Concluída ${userEmail}:`, err);
             }
           }
         }
@@ -146,7 +145,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, sent: totalSent });
 
   } catch (err) {
-    console.error("ERRO CRÍTICO NA ROTA:", err);
+    console.error("ERRO CRÍTICO:", err);
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
