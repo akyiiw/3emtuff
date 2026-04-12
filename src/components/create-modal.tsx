@@ -260,7 +260,7 @@ export function CreateModal({ open, onClose, onSave, defaultSubject, editItem }:
 
           {/* Date */}
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 items-center gap-1">
               <Calendar size={14} /> {itemType === "exam" ? "Data da prova" : itemType === "presentation" ? "Data da apresentação" : "Data de entrega"}
             </label>
             <input

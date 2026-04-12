@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
+import { getSubject } from "@/lib/subjects";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -77,7 +78,6 @@ export async function GET(req: NextRequest) {
             const date = task.done_at.split("T")[0];
             if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
 
-            const { getSubject } = await import("@/lib/subjects");
             const subj = getSubject((task.items as any).subject_id);
             const emoji = subj?.emoji ?? "📚";
 
@@ -114,7 +114,6 @@ export async function GET(req: NextRequest) {
             if (doneIds.has(item.id)) continue;
             if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
 
-            const { getSubject } = await import("@/lib/subjects");
             const subj = getSubject(item.subject_id);
             const emoji = subj?.emoji ?? "📚";
 
