@@ -122,10 +122,14 @@ export async function GET(req: NextRequest) {
           return d.toISOString().split("T")[0];
         });
 
-        const { data: items } = await supabase
+        const { data: items, error: itemsError } = await supabase
           .from("items")
-          .select("id, text, due_date, created_at, subject_id, type")
+          .select("id, text, due_date, created_at, subject_id")
           .in("due_date", targetDatesPending);
+
+        if (itemsError) {
+          console.error(`[Cron Reminders] Erro ao buscar itens para ${profile.email}:`, itemsError);
+        }
 
         console.log(`[Cron Reminders] Pendentes para ${profile.email}: ${items?.length ?? 0} itens (Datas: ${targetDatesPending.join(", ")})`);
 
@@ -140,7 +144,8 @@ export async function GET(req: NextRequest) {
 
               const subj = getSubject(item.subject_id);
               const emoji = subj?.emoji ?? "📚";
-              const typeLabel = item.type === "exam" ? "Prova" : item.type === "work" ? "Trabalho" : item.type === "presentation" ? "Apresentação" : "Atividade";
+              // Usamos "Atividade" como default pois a coluna 'type' causou erro na query
+              const typeLabel = "Atividade";
 
               agendaAgrupada[item.due_date].push({
                 text: `${emoji} [${typeLabel}] ${item.text}`,
