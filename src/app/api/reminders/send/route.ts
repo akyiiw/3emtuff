@@ -113,7 +113,6 @@ export async function GET(req: NextRequest) {
           .from("items")
           .select("text, due_date")
           .in("due_date", targetDates)
-          .eq("created_by", pref.user_id);
 
         console.log(`Buscando Pendentes para ${targetDates} -> Encontrados: ${items?.length ?? 0}`);
         items?.forEach(item => queueEmail(item.text, item.due_date, "Pendente"));
