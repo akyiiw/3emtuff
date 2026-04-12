@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
         if (items) {
           for (const item of items) {
             try {
-              if (doneIds.has(item.id)) continue;
+              const isDone = doneIds.has(item.id);
               if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
 
               const subj = getSubject(item.subject_id);
@@ -135,9 +135,9 @@ export async function GET(req: NextRequest) {
 
               agendaAgrupada[item.due_date].push({
                 text: `${emoji} ${item.text}`,
-                status: "Pendente",
-                color: "#6b7280",
-                bg: "#f3f4f6",
+                status: isDone ? "Concluída" : "Pendente",
+                color: isDone ? "#10b981" : "#6b7280",
+                bg: isDone ? "#ecfdf5" : "#f3f4f6",
                 link: "/atividades",
                 timestamp: new Date(item.created_at).getTime()
               });
