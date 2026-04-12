@@ -74,21 +74,27 @@ export async function GET(req: NextRequest) {
 
         if (doneTasks) {
           for (const task of doneTasks) {
-            if (!task.done_at || !task.items) continue;
-            const date = task.done_at.split("T")[0];
-            if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
+            try {
+              if (!task.done_at || !task.items) continue;
+              const date = task.done_at.split("T")[0];
+              if (!agendaAgrupada[date]) agendaAgrupada[date] = [];
 
-            const subj = getSubject((task.items as any).subject_id);
-            const emoji = subj?.emoji ?? "📚";
+              const itemData = Array.isArray(task.items) ? task.items[0] : task.items;
+              const subj = getSubject(itemData?.subject_id);
+              const emoji = subj?.emoji ?? "📚";
+              const text = itemData?.text ?? "Atividade";
 
-            agendaAgrupada[date].push({
-              text: `${emoji} ${(task.items as any).text}`,
-              status: "Concluída",
-              color: "#10b981",
-              bg: "#ecfdf5",
-              link: "/atividades",
-              timestamp: new Date(task.done_at).getTime()
-            });
+              agendaAgrupada[date].push({
+                text: `${emoji} ${text}`,
+                status: "Concluída",
+                color: "#10b981",
+                bg: "#ecfdf5",
+                link: "/atividades",
+                timestamp: new Date(task.done_at).getTime()
+              });
+            } catch (e) {
+              console.error("Erro ao processar task concluída:", e);
+            }
           }
         }
       }
@@ -111,20 +117,24 @@ export async function GET(req: NextRequest) {
 
         if (items) {
           for (const item of items) {
-            if (doneIds.has(item.id)) continue;
-            if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
+            try {
+              if (doneIds.has(item.id)) continue;
+              if (!agendaAgrupada[item.due_date]) agendaAgrupada[item.due_date] = [];
 
-            const subj = getSubject(item.subject_id);
-            const emoji = subj?.emoji ?? "📚";
+              const subj = getSubject(item.subject_id);
+              const emoji = subj?.emoji ?? "📚";
 
-            agendaAgrupada[item.due_date].push({
-              text: `${emoji} ${item.text}`,
-              status: "Pendente",
-              color: "#6b7280",
-              bg: "#f3f4f6",
-              link: "/atividades",
-              timestamp: new Date(item.created_at).getTime()
-            });
+              agendaAgrupada[item.due_date].push({
+                text: `${emoji} ${item.text}`,
+                status: "Pendente",
+                color: "#6b7280",
+                bg: "#f3f4f6",
+                link: "/atividades",
+                timestamp: new Date(item.created_at).getTime()
+              });
+            } catch (e) {
+              console.error("Erro ao processar item pendente:", e);
+            }
           }
         }
       }
