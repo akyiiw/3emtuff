@@ -84,7 +84,6 @@ export async function GET(req: NextRequest) {
           .from("items")
           .select("id, text, due_date")
           .in("due_date", targetDates)
-          .eq("created_by", pref.user_id);
 
         if (items) {
           for (const item of items) {
