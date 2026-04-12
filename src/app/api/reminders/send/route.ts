@@ -17,15 +17,6 @@ export const getAdminClient = () => {
   );
 };
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_SERVER_HOST,
-  port: Number(process.env.EMAIL_SERVER_PORT) || 587,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASS,
-  },
-});
-
 const FROM_EMAIL = `3emtuff <${process.env.GMAIL_USER}>`;
 
 // Função para gerar as datas alvo (YYYY-MM-DD)
@@ -45,6 +36,15 @@ function buildTargetDates(today: Date, scheduleDays: number[]): string[] {
 export async function GET(req: NextRequest) {
   // 1. LOG DE ENTRADA (Para você saber que a rota acordou)
   console.log("=== ROTA DE LEMBRETES ACESSADA ===");
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.EMAIL_SERVER_HOST,
+    port: Number(process.env.EMAIL_SERVER_PORT) || 587,
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_PASS,
+    },
+  });
 
   // 2. SEGURANÇA (Padrão Vercel Authorization)
   const authHeader = req.headers.get("authorization");
