@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     port: Number(process.env.EMAIL_SERVER_PORT) || 587,
     auth: {
       user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASS,
+      pass: process.env.GMAIL_APP_PASSWORD,
     },
   });
 
