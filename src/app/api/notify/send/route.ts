@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       .eq("user_id", userId)
       .eq("is_read", false)
       .gte("created_at", since)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .returns<NotifRow[]>();
 
     if (!notifs || notifs.length === 0) {

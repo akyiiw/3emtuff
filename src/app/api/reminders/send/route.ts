@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
         const { data: doneTasks } = await supabase
           .from("task_done")
           .select(`item_id, done_at, items ( text )`)
+          .eq("user_id", pref.user_id)
           .in("done_at_date_only", targetDatesDone);
 
         doneTasks?.forEach(task => {
