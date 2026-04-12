@@ -25,7 +25,7 @@ function formatDateBr(dateStr: string) {
 }
 
 export async function GET(req: NextRequest) {
-  console.log("=== INICIANDO ENVIO DE RESUMO (CONCLUÍDOS PRIVADOS) ===");
+  console.log("=== [Cron Reminders] Iniciando processo de envio ===");
 
   const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
@@ -38,8 +38,10 @@ export async function GET(req: NextRequest) {
 
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${CRON_SECRET}`) {
+    console.error("[Cron Reminders] Erro: Não autorizado. Secret inválido.");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  console.log("[Cron Reminders] Autorização bem sucedida");
 
   const supabase = getAdminClient();
   const today = new Date();
@@ -48,6 +50,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: prefs } = await supabase.from("reminder_preferences").select("*");
     const { data: profiles } = await supabase.from("profiles").select("id, name, display_name, email");
+    console.log(`[Cron Reminders] Total de preferências: ${prefs?.length ?? 0}, Perfis: ${profiles?.length ?? 0}`);
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) ?? []);
     
     let emailsSentCount = 0;
@@ -211,6 +214,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    console.log(`=== [Cron Reminders] Processo finalizado. E-mails enviados: ${emailsSentCount} ===`);
     return NextResponse.json({ success: true, emailsSent: emailsSentCount });
   } catch (err) {
     console.error(err);
