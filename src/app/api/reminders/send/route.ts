@@ -133,16 +133,16 @@ export async function GET(req: NextRequest) {
           itensOrdenados.forEach(task => {
             rows += `
               <tr>
-                <td style="padding: 8px 0; vertical-align: top; width: 80px;">
+                <td style="padding: 10px 0; vertical-align: top; width: 100px;">
                   <span style="display: inline-block; padding: 2px 8px; background: ${task.bg}; border-radius: 4px; font-size: 11px; color: ${task.color}; font-weight: 600;">
                     ${task.status}
                   </span>
                 </td>
-                <td style="padding: 8px 0;">
+                <td style="padding: 10px 0;">
                   <div style="font-size: 14px; color: #18181b; font-weight: 500;">${task.text}</div>
                   <a href="${BASE_URL}${task.link}" style="font-size: 12px; color: #6366f1; text-decoration: none;">Ver detalhes &rarr;</a>
                 </td>
-                <td style="padding: 8px 0; white-space: nowrap; font-size: 12px; color: #9ca3af; text-align: right; vertical-align: top;">
+                <td style="padding: 10px 0; white-space: nowrap; font-size: 12px; color: #9ca3af; text-align: right; vertical-align: top;">
                   ${dateLabel}
                 </td>
               </tr>`;
