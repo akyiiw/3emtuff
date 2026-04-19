@@ -255,7 +255,7 @@ export default function DashboardPage() {
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDay = new Date(year, month, 1).getDay();
-    const startOffset = (firstDay + 6) % 7;
+    const startOffset = firstDay;
     const cells: { date: string; day: number; isCurrent: boolean; items: ItemData[] }[] = [];
     for (let i = 0; i < startOffset; i++) {
       const prevDate = new Date(year, month, -startOffset + i + 1);
@@ -609,7 +609,7 @@ export default function DashboardPage() {
                       {expanded && (
                         <div className="px-3 pb-3">
                           <div className="grid grid-cols-7 gap-0 mb-1">
-                            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
+                            {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => (
                               <div key={d} className="text-center text-[10px] text-zinc-400 py-1">{d}</div>
                             ))}
                           </div>
@@ -618,6 +618,7 @@ export default function DashboardPage() {
                               const isToday = cell.date === todayStr;
                               const isSelected = cell.date === selectedDay;
                               const hasItems = cell.items.length > 0;
+                              const isPast = cell.isCurrent && cell.date < todayStr;
                               return (
                                 <button
                                   key={idx}
@@ -629,18 +630,18 @@ export default function DashboardPage() {
                                       : isSelected
                                       ? "bg-zinc-200 dark:bg-zinc-700 rounded-full"
                                       : "hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
-                                  } ${cell.isCurrent ? "" : "opacity-30"}`}
+                                  } ${cell.isCurrent && !isPast ? "" : isPast ? "opacity-40" : "opacity-30"}`}
                                 >
                                   <div className="relative flex flex-col items-center">
-                                    <span className={`text-[11px] ${getDayStatus(cell.date).isSpecial ? "text-zinc-500 dark:text-zinc-400 font-medium" : ""}`}>{cell.day}</span>
-                                    {getDayStatus(cell.date).isSpecial && (
+                                    <span className={`text-[11px] ${(!isPast && getDayStatus(cell.date).isSpecial) ? "text-zinc-500 dark:text-zinc-400 font-medium" : ""}`}>{cell.day}</span>
+                                    {!isPast && getDayStatus(cell.date).isSpecial && (
                                       <div className="absolute -top-1 -right-1 w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
                                     )}
                                     {isToday && <div className="w-1 h-1 rounded-full bg-zinc-900 dark:bg-zinc-100 mt-0.5" />}
                                     {hasItems && (
                                       <div className="flex justify-center gap-0.5 mt-0.5">
                                         {cell.items.slice(0, 3).map((item) => (
-                                          <div key={item.id} className={`w-1.5 h-1.5 rounded-full ${typeColor(item.item_type)}`} />
+                                          <div key={item.id} className={`w-1.5 h-1.5 rounded-full ${typeColor(item.item_type)} ${isPast ? "opacity-50" : ""}`} />
                                         ))}
                                       </div>
                                     )}
