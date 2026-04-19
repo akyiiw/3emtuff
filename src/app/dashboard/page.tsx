@@ -10,16 +10,20 @@ import { ReminderSettings } from "@/components/reminder-settings";
 import {
   Stat, CollapsibleSection, ItemLine, ExamLine, DisplayNameModal, profileCache,
 } from "@/components/dashboard";
+import { SpecialDaysModal } from "@/components/dashboard/special-days-modal";
 import type { ItemData } from "@/components/dashboard";
 import {
   Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown,
   GraduationCap, FolderOpen, FileText, ChevronRight, Presentation, X,
+  Shield // Add Shield icon
 } from "lucide-react";
 import Link from "next/link";
+import { useModerator } from "@/lib/use-moderator";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const isModerator = useModerator(currentUser);
   const [allItems, setAllItems] = useState<ItemData[]>([]);
   const [doneSet, setDoneSet] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -29,13 +33,27 @@ export default function DashboardPage() {
   const [showPresentationPanel, setShowPresentationPanel] = useState(false);
   const [showDisplayNameModal, setShowDisplayNameModal] = useState(false);
   const [showReminderSettings, setShowReminderSettings] = useState(false);
+  const [specialDays, setSpecialDays] = useState<Record<string, { type: string; label: string }>>({});
+  const [showSpecialDaysModal, setShowSpecialDaysModal] = useState(false);
 
   // Calendar
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showMonthView, setShowMonthView] = useState(false);
 
-  useEffect(() => { loadUser(); loadItems(); }, []);
+  useEffect(() => { loadUser(); loadItems(); loadSpecialDays(); }, []);
+
+  async function loadSpecialDays() {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.from("special_days").select("date, type, label");
+      if (data) {
+        const mapping: Record<string, { type: string; label: string }> = {};
+        data.forEach((d: any) => { mapping[d.date] = { type: d.type, label: d.label }; });
+        setSpecialDays(mapping);
+      }
+    } catch { /* ignore */ }
+  }
 
   async function saveDisplayName(displayName: string) {
     if (!currentUser) return;
@@ -187,11 +205,13 @@ export default function DashboardPage() {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const key = d.toISOString().split("T")[0];
+    const special = specialDays[key];
     return {
       key,
       label: d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }),
       isToday: key === todayStr,
       items: allItems.filter((it) => it.due_date === key),
+      special,
     };
   });
 
@@ -235,7 +255,11 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar onOpenSettings={() => setShowReminderSettings(true)} userId={currentUser} />
+      <Navbar
+        onOpenSettings={() => setShowReminderSettings(true)}
+        onOpenSpecialDays={isModerator ? () => setShowSpecialDaysModal(true) : undefined}
+        userId={currentUser}
+      />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* Stats — SÓ atividades */}
@@ -490,6 +514,11 @@ export default function DashboardPage() {
                           : "text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
                       }`}>
                         {day.label}
+                        {day.special && (
+                          <span className="text-[10px] font-normal text-zinc-400 dark:text-zinc-500 italic ml-1">
+                            — {day.special.label}
+                          </span>
+                        )}
                       </div>
                       {day.items.length > 0 && (
                         <div className="flex items-center gap-0.5">
@@ -574,7 +603,10 @@ export default function DashboardPage() {
                                   } ${cell.isCurrent ? "" : "opacity-30"}`}
                                 >
                                   <div className="relative flex flex-col items-center">
-                                    <span className="text-[11px]">{cell.day}</span>
+                                    <span className={`text-[11px] ${specialDays[cell.date] ? "text-zinc-500 dark:text-zinc-400 font-medium" : ""}`}>{cell.day}</span>
+                                    {specialDays[cell.date] && (
+                                      <div className="absolute -top-1 -right-1 w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
+                                    )}
                                     {isToday && <div className="w-1 h-1 rounded-full bg-zinc-900 dark:bg-zinc-100 mt-0.5" />}
                                     {hasItems && (
                                       <div className="flex justify-center gap-0.5 mt-0.5">
@@ -639,6 +671,12 @@ export default function DashboardPage() {
         open={showReminderSettings}
         onClose={() => setShowReminderSettings(false)}
         userId={currentUser}
+      />
+
+      <SpecialDaysModal
+        open={showSpecialDaysModal}
+        onClose={() => setShowSpecialDaysModal(false)}
+        onUpdated={loadSpecialDays}
       />
     </div>
   );
