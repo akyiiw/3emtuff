@@ -10,7 +10,6 @@ import { ReminderSettings } from "@/components/reminder-settings";
 import {
   Stat, CollapsibleSection, ItemLine, ExamLine, DisplayNameModal, profileCache,
 } from "@/components/dashboard";
-import { SpecialDaysModal } from "@/components/dashboard/special-days-modal";
 import type { ItemData } from "@/components/dashboard";
 import {
   Clock, AlertTriangle, CheckCircle2, Calendar, User, ChevronDown,
@@ -34,7 +33,6 @@ export default function DashboardPage() {
   const [showDisplayNameModal, setShowDisplayNameModal] = useState(false);
   const [showReminderSettings, setShowReminderSettings] = useState(false);
   const [specialDays, setSpecialDays] = useState<Record<string, { type: string; label: string }>>({});
-  const [showSpecialDaysModal, setShowSpecialDaysModal] = useState(false);
 
   // Calendar
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -53,6 +51,39 @@ export default function DashboardPage() {
         setSpecialDays(mapping);
       }
     } catch { /* ignore */ }
+  }
+
+  async function handleDoubleClickDay(date: string) {
+    if (!isModerator) return;
+
+    const existing = specialDays[date];
+    const label = prompt(existing ? `Editar legenda para ${date}:` : `Legenda para ${date}:`, existing?.label ?? "Bom descanso!");
+
+    if (label === null) return; // Cancelled
+
+    try {
+      const supabase = createClient();
+      if (label === "") {
+        await supabase.from("special_days").delete().eq("date", date);
+      } else {
+        await supabase.from("special_days").upsert({
+          date,
+          label,
+          type: "custom"
+        });
+      }
+      await loadSpecialDays();
+    } catch (err: any) {
+      alert("Erro ao salvar: " + err.message);
+    }
+  }
+
+  function getDayStatus(date: string) {
+    const d = new Date(date + "T00:00:00");
+    const dayOfWeek = d.getDay(); // 0 = Sunday, 6 = Saturday
+    if (dayOfWeek === 0 || dayOfWeek === 6) return { isSpecial: true, label: "Bom descanso!" };
+    if (specialDays[date]) return { isSpecial: true, label: specialDays[date].label };
+    return { isSpecial: false, label: "" };
   }
 
   async function saveDisplayName(displayName: string) {
@@ -205,13 +236,13 @@ export default function DashboardPage() {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
     const key = d.toISOString().split("T")[0];
-    const special = specialDays[key];
+    const status = getDayStatus(key);
     return {
       key,
       label: d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" }),
       isToday: key === todayStr,
       items: allItems.filter((it) => it.due_date === key),
-      special,
+      special: status.isSpecial ? { label: status.label } : null,
     };
   });
 
@@ -255,11 +286,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <Navbar
-        onOpenSettings={() => setShowReminderSettings(true)}
-        onOpenSpecialDays={isModerator ? () => setShowSpecialDaysModal(true) : undefined}
-        userId={currentUser}
-      />
+      <Navbar onOpenSettings={() => setShowReminderSettings(true)} userId={currentUser} />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {/* Stats — SÓ atividades */}
@@ -504,6 +531,7 @@ export default function DashboardPage() {
                   <div key={day.key} className="py-2 last:pb-0 first:pt-0">
                     <button
                       onClick={() => setSelectedDay(day.key === selectedDay ? null : day.key)}
+                      onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickDay(day.key); }}
                       className="flex items-center justify-between w-full group px-2 py-1 -mx-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <div className={`text-xs font-medium capitalize flex items-center gap-1.5 ${
@@ -594,6 +622,7 @@ export default function DashboardPage() {
                                 <button
                                   key={idx}
                                   onClick={() => { setSelectedDay(cell.date === selectedDay ? null : cell.date); }}
+                                  onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickDay(cell.date); }}
                                   className={`text-center py-1 px-0.5 transition ${
                                     isToday
                                       ? "font-bold"
@@ -603,8 +632,8 @@ export default function DashboardPage() {
                                   } ${cell.isCurrent ? "" : "opacity-30"}`}
                                 >
                                   <div className="relative flex flex-col items-center">
-                                    <span className={`text-[11px] ${specialDays[cell.date] ? "text-zinc-500 dark:text-zinc-400 font-medium" : ""}`}>{cell.day}</span>
-                                    {specialDays[cell.date] && (
+                                    <span className={`text-[11px] ${getDayStatus(cell.date).isSpecial ? "text-zinc-500 dark:text-zinc-400 font-medium" : ""}`}>{cell.day}</span>
+                                    {getDayStatus(cell.date).isSpecial && (
                                       <div className="absolute -top-1 -right-1 w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600" />
                                     )}
                                     {isToday && <div className="w-1 h-1 rounded-full bg-zinc-900 dark:bg-zinc-100 mt-0.5" />}
@@ -671,12 +700,6 @@ export default function DashboardPage() {
         open={showReminderSettings}
         onClose={() => setShowReminderSettings(false)}
         userId={currentUser}
-      />
-
-      <SpecialDaysModal
-        open={showSpecialDaysModal}
-        onClose={() => setShowSpecialDaysModal(false)}
-        onUpdated={loadSpecialDays}
       />
     </div>
   );

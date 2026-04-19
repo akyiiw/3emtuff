@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SUBJECTS } from "@/lib/subjects";
-import { LogOut, MessageSquare, Settings, Sun, Moon, Shield } from "lucide-react";
+import { LogOut, MessageSquare, Settings, Sun, Moon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/lib/theme";
@@ -18,7 +18,7 @@ const COLOR_MAP: Record<string, string> = {
   "bg-rose-500": "#f43f5e",
 };
 
-export function Navbar({ onOpenSettings, onOpenSpecialDays, userId }: { onOpenSettings?: () => void; onOpenSpecialDays?: () => void; userId?: string | null }) {
+export function Navbar({ onOpenSettings, userId }: { onOpenSettings?: () => void; userId?: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -127,15 +127,6 @@ export function Navbar({ onOpenSettings, onOpenSpecialDays, userId }: { onOpenSe
               title="Configurações"
             >
               <Settings size={16} className="text-zinc-400" />
-            </button>
-          )}
-          {onOpenSpecialDays && (
-            <button
-              onClick={onOpenSpecialDays}
-              className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
-              title="Gerenciar Dias Especiais"
-            >
-              <Shield size={16} className="text-zinc-400" />
             </button>
           )}
           {userId && <NotificationBell userId={userId} />}
