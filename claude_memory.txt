@@ -1,0 +1,33 @@
+# Claude Memory Log
+
+## Project Structure Summary
+- Framework: Next.js
+- Language: TypeScript
+- Key files/folders:
+  - /src: Source code
+  - /public: Static assets
+  - components.json: Configuration for components (likely shadcn/ui)
+  - next.config.ts, tsconfig.json, package.json: Project configuration
+
+## Session History
+- 2026-05-03: Initialized project exploration.
+- 2026-05-03: Created claude_memory.txt and added to .gitignore to track changes and context.
+
+## Changes & Notes
+- Set up a persistent memory file to maintain context across sessions as requested by the user.
+
+## Detailed Structure
+- /src/app:
+  - /api: Routes for moderation, notifications, and reminders.
+  - /dashboard: Subject-based dashboard views.
+  - /forum: Forum pages and individual post views.
+  - layout.tsx, page.tsx, globals.css: Root app configuration.
+- /src/components:
+  - /dashboard: Dashboard-specific components (stats, exam lines, etc.).
+  - /forum: Forum-related components and configurations.
+  - /subject: Components for subject details and listing.
+  - navbar.tsx, notification-bell.tsx, reminder-settings.tsx: Global components.
+- /src/lib:
+  - /supabase: Supabase clients (admin, client, server) and types.
+  - utils.ts, theme.ts: General helpers.
+  - notifications.ts, send-email.ts: Email and notification logic.

@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
             html: emailHtml,
           });
           emailsSentCount++;
-          await new Promise(r => setTimeout(r, 400));
+          await new Promise(r => setTimeout(r, 10000));
         } catch (e) {
           console.error(`Erro:`, e);
         }
