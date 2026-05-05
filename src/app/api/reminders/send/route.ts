@@ -8,6 +8,11 @@ export const revalidate = 0;
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://3emtuff.vercel.app";
+const user = process.env.GMAIL_USER;
+
+const client = process.env.GOOGLE_CLIENT_ID;
+const secret = process.env.GOOGLE_SECRET_KEY;
+const refreshToken = process.env.REFRESH_TOKEN;
 
 export const getAdminClient = () => {
   return createClient(
@@ -33,13 +38,16 @@ export async function GET(req: NextRequest) {
   console.log("=== [Cron Reminders] Iniciando processo de envio ===");
 
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_SERVER_HOST || "smtp.gmail.com",
-    port: Number(process.env.EMAIL_SERVER_PORT) || 587,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
+      service: "gmail",
+      auth: 
+      { 
+        type: "OAuth2",
+        user: user,
+        clientId: client,
+        clientSecret: secret,
+        refreshToken: refreshToken
+      },
+    });
 
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${CRON_SECRET}`) {

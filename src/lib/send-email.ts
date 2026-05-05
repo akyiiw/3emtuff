@@ -7,12 +7,22 @@ function getTransporter() {
 
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
+  const client = process.env.GOOGLE_CLIENT_ID;
+  const secret = process.env.GOOGLE_SECRET_KEY;
+  const refreshToken = process.env.REFRESH_TOKEN;
 
   if (!user || !pass) throw new Error("GMAIL_USER and GMAIL_APP_PASSWORD not configured");
 
   transporter = nodemailer.createTransport({
     service: "gmail",
-    auth: { user, pass },
+    auth: 
+    { 
+      type: "OAuth2",
+      user: user,
+      clientId: client,
+      clientSecret: secret,
+      refreshToken: refreshToken
+    },
   });
 
   return transporter;
