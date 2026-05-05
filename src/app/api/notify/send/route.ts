@@ -139,6 +139,12 @@ export async function POST(req: NextRequest) {
 
   } catch (err) {
     console.error("[notify-send] Erro fatal:", err);
+    console.log("--- DEBUG OAUTH ---");
+    console.log("User:", process.env.GMAIL_USER);
+    console.log("Client ID existe?:", !!process.env.GOOGLE_CLIENT_ID);
+    console.log("Secret existe?:", !!process.env.GOOGLE_SECRET_KEY);
+    console.log("Refresh Token existe?:", !!process.env.REFRESH_TOKEN);
+    console.log("-------------------");
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
