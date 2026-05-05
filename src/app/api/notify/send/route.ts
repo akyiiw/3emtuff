@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendEmail } from "@/lib/send-email";
+import { sendEmail } from "@/lib/send-email"; // Certifique-se que este arquivo usa OAuth2 agora
 import { getAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -7,7 +7,6 @@ type NotifRow = Database["public"]["Tables"]["notifications"]["Row"] & {
   item_id?: string | null;
 };
 
-const GMAIL_USER = process.env.GMAIL_USER;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://3emtuff.vercel.app";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -19,7 +18,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  console.log("[notify-send] Webhook iniciado");
+  console.log("[notify-send] Webhook iniciado via OAuth2");
 
   // 1. Validação de Segurança
   const webhookSecret = process.env.WEBHOOK_SECRET;
@@ -36,11 +35,10 @@ export async function POST(req: NextRequest) {
     const userId = record.user_id as string;
 
     if (!userId) return NextResponse.json({ error: "user_id ausente" }, { status: 400 });
-    if (!GMAIL_USER) return NextResponse.json({ error: "GMAIL_USER não configurado" }, { status: 500 });
 
     const supabase = getAdminClient();
 
-    // 2. Buscar Dados do Usuário (E-mail e Perfil)
+    // 2. Buscar Dados do Usuário
     const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
     if (authError || !authUser?.user?.email) {
       return NextResponse.json({ skipped: "Usuário sem e-mail" });
@@ -70,8 +68,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ skipped: "Sem notificações não lidas" });
     }
 
-    // 4. FILTRO DE TAREFAS CONCLUÍDAS
-    // Buscamos o que esse usuário já marcou como feito
+    // 4. Filtro de Tarefas Concluídas
     const { data: doneTasks } = await supabase
       .from("task_done")
       .select("item_id")
@@ -80,18 +77,17 @@ export async function POST(req: NextRequest) {
 
     const doneIds = new Set(doneTasks?.map(d => d.item_id) || []);
 
-    // Filtramos para manter apenas o que não foi feito e ignorar avisos de "item_done"
     const filteredNotifs = allNotifs.filter(n => {
-      if (n.type === "item_done") return false; // Remove notificações de conclusão
-      if (n.item_id && doneIds.has(n.item_id)) return false; // Remove se a tarefa já está na task_done
+      if (n.type === "item_done") return false;
+      if (n.item_id && doneIds.has(n.item_id)) return false;
       return true;
     });
 
     if (filteredNotifs.length === 0) {
-      return NextResponse.json({ skipped: "Todas as tarefas já foram concluídas" });
+      return NextResponse.json({ skipped: "Todas as tarefas concluídas" });
     }
 
-    // 5. Construção do HTML
+    // 5. Construção do HTML (Mantida sua lógica visual)
     let notifRows = "";
     for (const n of filteredNotifs) {
       const label = TYPE_LABELS[n.type] ?? "Novidade";
@@ -121,7 +117,7 @@ export async function POST(req: NextRequest) {
         <h2 style="margin-top: 0; color: #18181b; font-size: 20px;">
           Você tem ${filteredNotifs.length} nova${filteredNotifs.length > 1 ? "s" : ""} pendênci${filteredNotifs.length > 1 ? "as" : "a"}
         </h2>
-        <p style="color: #3f3f46;">Olá, <strong>${displayName}</strong>! Surgiram novidades recentes no 3emtuff:</p>
+        <p style="color: #3f3f46;">Olá, <strong>${displayName}</strong>!</p>
         <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
           ${notifRows}
         </table>
@@ -132,18 +128,17 @@ export async function POST(req: NextRequest) {
         </div>
       </div>`;
 
-    // 6. Enviar E-mail
+    // 6. Enviar E-mail (Agora usando a lib atualizada com OAuth2)
     await sendEmail({
       to: email,
       subject: `[3emtuff] ${filteredNotifs.length} nova${filteredNotifs.length > 1 ? "s" : ""} pendênci${filteredNotifs.length > 1 ? "as" : "a"}`,
       html: emailHtml,
     });
 
-    console.log(`[notify-send] Sucesso: ${filteredNotifs.length} notifs para ${email}`);
     return NextResponse.json({ sent: filteredNotifs.length, to: email });
 
   } catch (err) {
     console.error("[notify-send] Erro fatal:", err);
-    return NextResponse.json({ error: "Internal error", details: String(err) }, { status: 500 });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
